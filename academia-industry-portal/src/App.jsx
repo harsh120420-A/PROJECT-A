@@ -13,6 +13,12 @@ import Applications from "./pages/student/Applications";
 import Portfolio from "./pages/student/Portfolio";
 import Learning from "./pages/student/Learning";
 import Profile from "./pages/student/Profile";
+import IndustryDashboard from "./pages/industry/IndustryDashboard";
+import PostOpportunity from "./pages/industry/PostOpportunity";
+import MyOpportunities from "./pages/industry/MyOpportunities";
+import EditOpportunity from "./pages/industry/EditOpportunity";
+import Candidates from "./pages/industry/Candidates";
+import CandidateProfile from "./pages/industry/CandidateProfile";
 
 function App() {
   return (
@@ -34,7 +40,13 @@ function App() {
         <Route path="/portfolio" element={<Portfolio />} />
         <Route path="/learning" element={<Learning />} />
         <Route path="/profile" element={<Profile />} />
-        
+        <Route path="/industry/dashboard" element={<IndustryDashboard />} />
+        <Route path="/industry/post-opportunity" element={<PostOpportunity />} />
+        <Route path="/industry/opportunities" element={<MyOpportunities />} />
+        <Route path="/industry/opportunities/:id/edit" element={<EditOpportunity />} />
+        <Route path="/industry/candidates/:id" element={<Candidates />} />
+        <Route path="/industry/candidates/:opportunityId/:candidateId" element={<CandidateProfile />} />
+
       </Routes>
     </BrowserRouter>
   );

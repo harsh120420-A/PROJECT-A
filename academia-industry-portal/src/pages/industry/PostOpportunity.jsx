@@ -1,0 +1,615 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  BriefcaseBusiness,
+  MapPin,
+  Clock,
+  Plus,
+  X
+} from "lucide-react";
+
+import {
+  getIndustryOpportunities,
+  saveIndustryOpportunities
+} from "../../utils/storage";
+
+function PostOpportunity() {
+
+  const navigate = useNavigate();
+
+  const [form, setForm] = useState({
+    title: "",
+    type: "Internship",
+    description: "",
+    location: "",
+    mode: "Hybrid",
+    duration: "",
+    deadline: ""
+  });
+
+  const [skillInput, setSkillInput] = useState("");
+
+  const [skills, setSkills] = useState([]);
+
+  const [message, setMessage] = useState("");
+
+
+  function handleChange(e) {
+
+    const { name, value } = e.target;
+
+    setForm((previous) => ({
+      ...previous,
+      [name]: value
+    }));
+
+  }
+
+
+  function addSkill() {
+
+  const skill = skillInput.trim();
+
+  if (!skill) {
+    return;
+  }
+
+  const alreadyExists = skills.some(
+    (existingSkill) =>
+      existingSkill.name.toLowerCase() ===
+      skill.toLowerCase()
+  );
+
+  if (alreadyExists) {
+    setSkillInput("");
+    return;
+  }
+
+  setSkills((previous) => [
+    ...previous,
+    {
+      name: skill,
+      requiredScore: 50
+    }
+  ]);
+
+  setSkillInput("");
+
+}
+
+
+  function removeSkill(skillToRemove) {
+
+    setSkills((previous) =>
+      previous.filter(
+        (skill) => skill !== skillToRemove
+      )
+    );
+
+  }
+
+
+  function handleSkillKeyDown(e) {
+
+    if (e.key === "Enter") {
+
+      e.preventDefault();
+
+      addSkill();
+
+    }
+
+  }
+
+
+  function handleSubmit(e) {
+
+    e.preventDefault();
+
+    if (skills.length === 0) {
+
+      setMessage(
+        "Please add at least one required skill."
+      );
+
+      return;
+    }
+
+
+    const existingOpportunities =
+      getIndustryOpportunities();
+
+
+    const newOpportunity = {
+
+      id: Date.now(),
+
+      title: form.title,
+
+      type: form.type,
+
+      description: form.description,
+
+      location: form.location,
+
+      mode: form.mode,
+
+      duration: form.duration,
+
+      deadline: form.deadline,
+
+      skillRequirements: skills,
+skills: skills.map(
+  (skill) => skill.name
+),
+
+      status: "Active",
+
+      applications: 0,
+
+      candidates: 0,
+
+      createdDate:
+        new Date().toLocaleDateString(
+          "en-US",
+          {
+            month: "short",
+            day: "numeric",
+            year: "numeric"
+          }
+        )
+    };
+
+
+    saveIndustryOpportunities([
+      ...existingOpportunities,
+      newOpportunity
+    ]);
+
+
+    setMessage(
+      "Opportunity published successfully!"
+    );
+
+
+    setTimeout(() => {
+
+      navigate("/industry/dashboard");
+
+    }, 800);
+
+  }
+
+
+  return (
+
+    <div className="min-h-screen bg-slate-50">
+
+      {/* Header */}
+
+      <div className="bg-white border-b">
+
+        <div className="px-8 py-6">
+
+          <p className="text-sm text-blue-600 font-medium">
+            INDUSTRY PORTAL
+          </p>
+
+          <h1 className="text-3xl font-bold text-slate-900 mt-2">
+            Post Opportunity
+          </h1>
+
+          <p className="text-slate-500 mt-2">
+            Create an internship, job or industry collaboration opportunity.
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <div className="p-8 max-w-5xl">
+
+        <form onSubmit={handleSubmit}>
+
+          {/* Basic Information */}
+
+          <div className="bg-white border rounded-2xl p-6">
+
+            <div className="flex items-center gap-3">
+
+              <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                <BriefcaseBusiness size={20} />
+              </div>
+
+              <div>
+
+                <h2 className="text-xl font-semibold">
+                  Opportunity Details
+                </h2>
+
+                <p className="text-sm text-slate-500 mt-1">
+                  Provide the basic information about the opportunity.
+                </p>
+
+              </div>
+
+            </div>
+
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
+
+              {/* Title */}
+
+              <div className="md:col-span-2">
+
+                <label className="block text-sm font-medium mb-2">
+                  Opportunity Title
+                </label>
+
+                <input
+                  type="text"
+                  name="title"
+                  value={form.title}
+                  onChange={handleChange}
+                  placeholder="e.g. Data Analyst Intern"
+                  className="w-full border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+
+              </div>
+
+
+              {/* Type */}
+
+              <div>
+
+                <label className="block text-sm font-medium mb-2">
+                  Opportunity Type
+                </label>
+
+                <select
+                  name="type"
+                  value={form.type}
+                  onChange={handleChange}
+                  className="w-full border border-slate-200 rounded-lg px-4 py-3 bg-white outline-none focus:ring-2 focus:ring-blue-500"
+                >
+
+                  <option value="Internship">
+                    Internship
+                  </option>
+
+                  <option value="Full-time Job">
+                    Full-time Job
+                  </option>
+
+                  <option value="Industrial Training">
+                    Industrial Training
+                  </option>
+
+                  <option value="Industry Project">
+                    Industry Project
+                  </option>
+
+                </select>
+
+              </div>
+
+
+              {/* Duration */}
+
+              <div>
+
+                <label className="block text-sm font-medium mb-2">
+                  Duration
+                </label>
+
+                <div className="relative">
+
+                  <Clock
+                    size={17}
+                    className="absolute left-3 top-3.5 text-slate-400"
+                  />
+
+                  <input
+                    type="text"
+                    name="duration"
+                    value={form.duration}
+                    onChange={handleChange}
+                    placeholder="e.g. 3 Months"
+                    className="w-full border border-slate-200 rounded-lg pl-10 pr-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+
+                </div>
+
+              </div>
+
+
+              {/* Location */}
+
+              <div>
+
+                <label className="block text-sm font-medium mb-2">
+                  Location
+                </label>
+
+                <div className="relative">
+
+                  <MapPin
+                    size={17}
+                    className="absolute left-3 top-3.5 text-slate-400"
+                  />
+
+                  <input
+                    type="text"
+                    name="location"
+                    value={form.location}
+                    onChange={handleChange}
+                    placeholder="e.g. Bangalore"
+                    className="w-full border border-slate-200 rounded-lg pl-10 pr-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+
+                </div>
+
+              </div>
+
+
+              {/* Mode */}
+
+              <div>
+
+                <label className="block text-sm font-medium mb-2">
+                  Work Mode
+                </label>
+
+                <select
+                  name="mode"
+                  value={form.mode}
+                  onChange={handleChange}
+                  className="w-full border border-slate-200 rounded-lg px-4 py-3 bg-white outline-none focus:ring-2 focus:ring-blue-500"
+                >
+
+                  <option value="On-site">
+                    On-site
+                  </option>
+
+                  <option value="Hybrid">
+                    Hybrid
+                  </option>
+
+                  <option value="Remote">
+                    Remote
+                  </option>
+
+                </select>
+
+              </div>
+
+
+              {/* Deadline */}
+
+              <div>
+
+                <label className="block text-sm font-medium mb-2">
+                  Application Deadline
+                </label>
+
+                <input
+                  type="date"
+                  name="deadline"
+                  value={form.deadline}
+                  onChange={handleChange}
+                  className="w-full border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+
+              </div>
+
+
+              {/* Description */}
+
+              <div className="md:col-span-2">
+
+                <label className="block text-sm font-medium mb-2">
+                  Description
+                </label>
+
+                <textarea
+                  name="description"
+                  value={form.description}
+                  onChange={handleChange}
+                  rows="5"
+                  placeholder="Describe the role, responsibilities and what the student will work on..."
+                  className="w-full border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  required
+                />
+
+              </div>
+
+            </div>
+
+          </div>
+
+
+          {/* Required Skills */}
+
+          <div className="bg-white border rounded-2xl p-6 mt-6">
+
+            <h2 className="text-xl font-semibold">
+              Required Skills
+            </h2>
+
+            <p className="text-sm text-slate-500 mt-1">
+              Add the skills candidates should have for this opportunity.
+            </p>
+
+
+            <div className="flex gap-3 mt-6">
+
+              <input
+                type="text"
+                value={skillInput}
+                onChange={(e) =>
+                  setSkillInput(e.target.value)
+                }
+                onKeyDown={handleSkillKeyDown}
+                placeholder="e.g. Python"
+                className="flex-1 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+              />
+
+              <button
+                type="button"
+                onClick={addSkill}
+                className="flex items-center gap-2 px-5 py-3 bg-slate-900 text-white rounded-lg font-medium hover:bg-slate-800"
+              >
+                <Plus size={17} />
+                Add
+              </button>
+
+            </div>
+
+
+            {/* Skill Tags */}
+
+            <div className="mt-6 space-y-4">
+
+  {skills.map((skill, index) => (
+
+    <div
+      key={skill.name}
+      className="border rounded-xl p-4"
+    >
+
+      <div className="flex items-center justify-between">
+
+        <span className="font-medium text-slate-800">
+          {skill.name}
+        </span>
+
+        <span className="text-sm font-semibold text-blue-600">
+          {skill.requiredScore}%
+        </span>
+
+      </div>
+
+
+      <div className="flex items-center gap-4 mt-4">
+
+        <input
+          type="range"
+          min="10"
+          max="100"
+          step="5"
+          value={skill.requiredScore}
+          onChange={(e) => {
+
+            const updatedSkills =
+              [...skills];
+
+            updatedSkills[index] = {
+              ...updatedSkills[index],
+              requiredScore:
+                Number(e.target.value)
+            };
+
+            setSkills(updatedSkills);
+
+          }}
+          className="flex-1"
+        />
+
+
+        <button
+          type="button"
+          onClick={() =>
+            removeSkill(skill.name)
+          }
+          className="p-2 text-slate-400 hover:text-red-500"
+        >
+          <X size={16} />
+        </button>
+
+      </div>
+
+
+      <div className="flex justify-between text-xs text-slate-400 mt-2">
+
+        <span>
+          Basic
+        </span>
+
+        <span>
+          Advanced
+        </span>
+
+      </div>
+
+    </div>
+
+  ))}
+
+</div>
+
+
+            {skills.length === 0 && (
+
+              <p className="text-sm text-slate-400 mt-4">
+                No skills added yet. Add the skills required for this opportunity.
+              </p>
+
+            )}
+
+          </div>
+
+
+          {/* Message */}
+
+          {message && (
+
+            <div
+              className={`mt-6 p-4 rounded-xl text-sm ${
+                message.includes("successfully")
+                  ? "bg-green-50 text-green-700"
+                  : "bg-red-50 text-red-600"
+              }`}
+            >
+              {message}
+            </div>
+
+          )}
+
+
+          {/* Actions */}
+
+          <div className="flex justify-end gap-3 mt-6">
+
+            <button
+              type="button"
+              onClick={() =>
+                navigate("/industry/dashboard")
+              }
+              className="px-5 py-3 border border-slate-200 bg-white rounded-lg font-medium hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
+            >
+              Publish Opportunity
+            </button>
+
+          </div>
+
+        </form>
+
+      </div>
+
+    </div>
+  );
+}
+
+export default PostOpportunity;

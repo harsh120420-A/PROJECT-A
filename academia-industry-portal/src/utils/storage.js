@@ -72,3 +72,41 @@ export function getPortfolio() {
 
   return JSON.parse(portfolio);
 }
+
+export function saveCompany(company) {
+  localStorage.setItem(
+    "industryCompany",
+    JSON.stringify(company)
+  );
+}
+
+export function getCompany() {
+  const company = localStorage.getItem(
+    "industryCompany"
+  );
+
+  if (!company) {
+    return null;
+  }
+
+  return JSON.parse(company);
+}
+
+export function saveIndustryOpportunities(opportunities) {
+  localStorage.setItem(
+    "industryOpportunities",
+    JSON.stringify(opportunities)
+  );
+}
+
+export function getIndustryOpportunities() {
+  const opportunities = localStorage.getItem(
+    "industryOpportunities"
+  );
+
+  if (!opportunities) {
+    return [];
+  }
+
+  return JSON.parse(opportunities);
+}
