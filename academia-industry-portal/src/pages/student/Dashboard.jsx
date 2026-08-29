@@ -7,12 +7,13 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
-// import { student } from "../../data/student";
+import { student } from "../../data/student";
 import { skills } from "../../data/skills";
 import { opportunities } from "../../data/opportunities";
+import { getProfile } from "../../utils/storage";
 
 function Dashboard() {
-
+  const profile = getProfile();
   return (
     <StudentLayout>
 
@@ -26,7 +27,7 @@ function Dashboard() {
           </p>
 
           <h1 className="text-3xl font-bold text-slate-900 mt-1">
-            Good morning, Harsh 👋
+            Good morning, {profile?.name || "Student"} 
           </h1>
 
           <p className="text-slate-500 mt-2">
@@ -46,7 +47,7 @@ function Dashboard() {
               </p>
 
               <h2 className="text-xl font-semibold mt-1">
-                Data Scientist
+                {profile?.careerGoal || "Set your career goal"}
               </h2>
             </div>
 
@@ -57,7 +58,7 @@ function Dashboard() {
               </p>
 
               <p className="text-3xl font-bold text-blue-600">
-                78%
+                {student.skillReadiness}%
               </p>
 
             </div>
@@ -68,7 +69,7 @@ function Dashboard() {
 
             <div
               className="h-full bg-blue-600 rounded-full"
-              style={{ width: "78%" }}
+              style={{ width: `${student.readiness}%` }}
             />
 
           </div>
@@ -76,33 +77,29 @@ function Dashboard() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-8">
+        <StatCard
+  icon={<Target />}
+  label="Skills"
+  value={student.stats.skills}
+/>
 
-          <StatCard
-            icon={<Target />}
-            label="Skills"
-            value="12"
-          />
+<StatCard
+  icon={<TrendingUp />}
+  label="Skill Gaps"
+  value={student.stats.skillGaps}
+/>
 
-          <StatCard
-            icon={<TrendingUp />}
-            label="Skill Gaps"
-            value="4"
-          />
+<StatCard
+  icon={<BriefcaseBusiness />}
+  label="Matches"
+  value={student.stats.matches}
+/>
 
-          <StatCard
-            icon={<BriefcaseBusiness />}
-            label="Matches"
-            value="18"
-          />
-
-          <StatCard
-            icon={<FileText />}
-            label="Applications"
-            value="6"
-          />
-
-        </div>
+<StatCard
+  icon={<FileText />}
+  label="Applications"
+  value={student.stats.applications}
+/>
 
         {/* Main Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

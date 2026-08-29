@@ -11,6 +11,8 @@ import SkillGaps from "./pages/student/SkillGaps";
 import Opportunities from "./pages/student/Opportunities";
 import Applications from "./pages/student/Applications";
 import Portfolio from "./pages/student/Portfolio";
+import Learning from "./pages/student/Learning";
+import Profile from "./pages/student/Profile";
 
 function App() {
   return (
@@ -30,7 +32,9 @@ function App() {
         <Route path="/opportunities" element={<Opportunities />} />
         <Route path="/applications" element={<Applications />} />
         <Route path="/portfolio" element={<Portfolio />} />
-
+        <Route path="/learning" element={<Learning />} />
+        <Route path="/profile" element={<Profile />} />
+        
       </Routes>
     </BrowserRouter>
   );

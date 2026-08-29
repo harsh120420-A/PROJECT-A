@@ -1,89 +1,150 @@
+import { useEffect, useState } from "react";
 import StudentLayout from "../../layouts/StudentLayout";
-import { applications } from "../../data/applications";
+import { getApplications } from "../../utils/storage";
+
+function ApplicationProgress({ status }) {
+  const stages = [
+    "Applied",
+    "Shortlisted",
+    "Interview",
+    "Selected",
+  ];
+
+  const currentIndex = stages.indexOf(status);
+
+  return (
+    <div className="flex items-center mt-3">
+      {stages.map((stage, index) => (
+        <div key={stage} className="flex items-center">
+
+          <div className="flex flex-col items-center">
+
+            <div
+              className={`w-3 h-3 rounded-full ${
+                index <= currentIndex
+                  ? "bg-blue-600"
+                  : "bg-slate-200"
+              }`}
+            />
+
+            <span className="text-xs text-slate-400 mt-1">
+              {stage}
+            </span>
+
+          </div>
+
+          {index < stages.length - 1 && (
+            <div
+              className={`w-10 h-0.5 mx-2 ${
+                index < currentIndex
+                  ? "bg-blue-600"
+                  : "bg-slate-200"
+              }`}
+            />
+          )}
+
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function Applications() {
-    return (
-        <StudentLayout>
+  const [applications, setApplications] = useState([]);
 
-            <div className="p-8">
+  useEffect(() => {
+    setApplications(getApplications());
+  }, []);
 
-                <p className="text-sm text-blue-600 font-medium">
-                    APPLICATIONS
-                </p>
+  return (
+    <StudentLayout>
+      <div className="p-8">
 
-                <h1 className="text-3xl font-bold mt-2">
-                    My Applications
-                </h1>
+        <p className="text-sm text-blue-600 font-medium">
+          APPLICATIONS
+        </p>
 
-                <p className="text-slate-500 mt-2">
-                    Track your internship and job applications.
-                </p>
+        <h1 className="text-3xl font-bold text-slate-900 mt-2">
+          My Applications
+        </h1>
 
-                <div className="mt-8 bg-white border rounded-2xl overflow-hidden">
+        <p className="text-slate-500 mt-2">
+          Track your internship and job applications.
+        </p>
 
-                    <table className="w-full">
+        <div className="mt-8 space-y-5">
 
-                        <thead className="bg-slate-50">
-                            <tr>
-                                <th className="text-left p-4 text-sm">
-                                    Opportunity
-                                </th>
+          {applications.length === 0 ? (
 
-                                <th className="text-left p-4 text-sm">
-                                    Company
-                                </th>
+            <div className="bg-white border rounded-2xl p-10 text-center">
 
-                                <th className="text-left p-4 text-sm">
-                                    Applied
-                                </th>
+              <h2 className="text-xl font-semibold">
+                No applications yet
+              </h2>
 
-                                <th className="text-left p-4 text-sm">
-                                    Status
-                                </th>
-                            </tr>
-                        </thead>
-
-                        <tbody>
-
-                            {applications.map((application) => (
-                                <tr
-                                    key={application.id}
-                                    className="border-t"
-                                >
-
-                                    <td className="p-4 font-medium">
-                                        {application.title}
-                                    </td>
-
-                                    <td className="p-4 text-slate-500">
-                                        {application.company}
-                                    </td>
-
-                                    <td className="p-4 text-slate-500">
-                                        {application.appliedDate}
-                                    </td>
-
-                                    <td className="p-4">
-
-                                        <span className="px-3 py-1 text-xs rounded-full bg-blue-50 text-blue-600">
-                                            {application.status}
-                                        </span>
-
-                                    </td>
-
-                                </tr>
-                            ))}
-
-                        </tbody>
-
-                    </table>
-
-                </div>
+              <p className="text-slate-500 mt-2">
+                Explore opportunities and apply for roles
+                that match your skills.
+              </p>
 
             </div>
 
-        </StudentLayout>
-    );
+          ) : (
+
+            applications.map((application) => (
+
+              <div
+                key={application.id}
+                className="bg-white border rounded-2xl p-6"
+              >
+
+                <div className="flex flex-col md:flex-row md:justify-between gap-4">
+
+                  <div>
+
+                    <h2 className="text-xl font-semibold">
+                      {application.title}
+                    </h2>
+
+                    <p className="text-slate-500 mt-1">
+                      {application.company}
+                    </p>
+
+                    <p className="text-sm text-slate-400 mt-2">
+                      Applied on {application.appliedDate}
+                    </p>
+
+                  </div>
+
+                  <div className="text-left md:text-right">
+
+                    <p className="text-sm text-slate-500">
+                      Current Status
+                    </p>
+
+                    <span className="inline-block mt-2 px-3 py-1 bg-blue-50 text-blue-600 text-sm rounded-full">
+                      {application.status}
+                    </span>
+
+                  </div>
+
+                </div>
+
+                <ApplicationProgress
+                  status={application.status}
+                />
+
+              </div>
+
+            ))
+
+          )}
+
+        </div>
+
+      </div>
+    </StudentLayout>
+  );
 }
 
 export default Applications;

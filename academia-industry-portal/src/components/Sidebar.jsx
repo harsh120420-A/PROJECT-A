@@ -7,6 +7,7 @@ import {
   BookOpen,
   FileText,
   UserRound,
+  Award,
   LogOut
 } from "lucide-react";
 
@@ -48,10 +49,15 @@ const menuItems = [
     path: "/applications",
     icon: FileText
   },
+{
+  name: "My Profile",
+  path: "/profile",
+  icon: UserRound
+},
   {
     name: "My Portfolio",
     path: "/portfolio",
-    icon: UserRound
+    icon: Award
   }
 ];
 
@@ -105,14 +111,15 @@ function Sidebar() {
       </nav>
 
       {/* Bottom */}
-      <div className="p-4 border-t">
-
-        <button className="flex items-center gap-3 px-4 py-3 text-sm text-slate-600 hover:text-red-600">
-          <LogOut size={19} />
-          Logout
-        </button>
-
-      </div>
+      <button
+  onClick={() => {
+    window.location.href = "/login";
+  }}
+  className="flex items-center gap-3 px-4 py-3 text-sm text-slate-600 hover:text-red-600"
+>
+  <LogOut size={19} />
+  Logout
+</button>
 
     </aside>
   );
