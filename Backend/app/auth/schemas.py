@@ -24,3 +24,9 @@ class RegisterRequest(BaseModel):
     location: str | None = None
 
     description: str | None = None
+
+class LoginRequest(BaseModel):
+
+    email: EmailStr
+
+    password: str

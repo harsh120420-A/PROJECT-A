@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-
+from .dependencies import get_current_user
 from ..database import get_db
 
 from ..models import (
@@ -10,8 +10,16 @@ from ..models import (
     Academician,
 )
 
-from .schemas import RegisterRequest
-from .security import hash_password
+from .schemas import (
+    RegisterRequest,
+    LoginRequest,
+)
+
+from .security import (
+    hash_password,
+    verify_password,
+    create_access_token,
+)
 
 
 router = APIRouter(
@@ -20,15 +28,19 @@ router = APIRouter(
 )
 
 
+# ============================================================
+# REGISTER
+# ============================================================
+
 @router.post("/register")
 def register(
     request: RegisterRequest,
     db: Session = Depends(get_db),
 ):
 
-    # -----------------------------------------
+    # --------------------------------------------------------
     # Validate role
-    # -----------------------------------------
+    # --------------------------------------------------------
 
     allowed_roles = {
         "STUDENT",
@@ -49,9 +61,9 @@ def register(
         )
 
 
-    # -----------------------------------------
-    # Check existing email
-    # -----------------------------------------
+    # --------------------------------------------------------
+    # Check whether email already exists
+    # --------------------------------------------------------
 
     existing_user = (
         db.query(User)
@@ -69,9 +81,9 @@ def register(
         )
 
 
-    # -----------------------------------------
+    # --------------------------------------------------------
     # Create common user
-    # -----------------------------------------
+    # --------------------------------------------------------
 
     user = User(
         name=request.name,
@@ -87,9 +99,9 @@ def register(
     db.flush()
 
 
-    # -----------------------------------------
+    # --------------------------------------------------------
     # Create role-specific profile
-    # -----------------------------------------
+    # --------------------------------------------------------
 
     if role == "STUDENT":
 
@@ -146,6 +158,10 @@ def register(
         db.add(academician)
 
 
+    # --------------------------------------------------------
+    # Save everything
+    # --------------------------------------------------------
+
     db.commit()
 
     db.refresh(user)
@@ -159,4 +175,91 @@ def register(
             "email": user.email,
             "role": user.role,
         },
+    }
+
+
+# ============================================================
+# LOGIN
+# ============================================================
+
+@router.post("/login")
+def login(
+    request: LoginRequest,
+    db: Session = Depends(get_db),
+):
+
+    # --------------------------------------------------------
+    # Find user by email
+    # --------------------------------------------------------
+
+    user = (
+        db.query(User)
+        .filter(
+            User.email == request.email
+        )
+        .first()
+    )
+
+    if not user:
+
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password.",
+        )
+
+
+    # --------------------------------------------------------
+    # Verify password
+    # --------------------------------------------------------
+
+    if not verify_password(
+        request.password,
+        user.password_hash,
+    ):
+
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password.",
+        )
+
+
+    # --------------------------------------------------------
+    # Generate JWT access token
+    # --------------------------------------------------------
+
+    access_token = create_access_token(
+        user_id=user.id,
+        role=user.role,
+    )
+
+
+    # --------------------------------------------------------
+    # Return login response
+    # --------------------------------------------------------
+
+    return {
+        "message": "Login successful",
+
+        "access_token": access_token,
+
+        "token_type": "bearer",
+
+        "user": {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "role": user.role,
+        },
+    }
+
+@router.get("/me")
+def get_me(
+    current_user: User = Depends(get_current_user),
+):
+
+    return {
+        "id": current_user.id,
+        "name": current_user.name,
+        "email": current_user.email,
+        "role": current_user.role,
     }

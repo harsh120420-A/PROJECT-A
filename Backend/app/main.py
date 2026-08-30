@@ -3,6 +3,9 @@ from sqlalchemy import text
 
 from .database import engine, Base
 from .auth.routes import router as auth_router
+from .student.routes import router as student_router
+from .industry.routes import router as industry_router
+from .academia.routes import router as academia_router
 
 # Import all models so SQLAlchemy registers them
 from .models import (
@@ -26,7 +29,9 @@ app = FastAPI(
     version="1.0.0",
 )
 app.include_router(auth_router)
-
+app.include_router(student_router)
+app.include_router(industry_router)
+app.include_router(academia_router)
 
 @app.on_event("startup")
 def create_tables():
