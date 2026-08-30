@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -19,6 +20,29 @@ router = APIRouter(
     tags=["Student"],
 )
 
+# ============================================================
+# STUDENT PROFILE SCHEMA
+# ============================================================
+
+class StudentProfileUpdate(BaseModel):
+
+    name: str
+    email: str
+    phone: str | None = None
+    college: str | None = None
+    degree: str | None = None
+    branch: str | None = None
+    graduation_year: int | None = None
+    career_goal: str | None = None
+    preferred_location: str | None = None
+
+# ============================================================
+# ASSESSMENT SCHEMA
+# ============================================================
+
+class AssessmentRequest(BaseModel):
+
+    answers: dict[str, int]
 
 # ============================================================
 # GET STUDENT PROFILE
@@ -50,10 +74,134 @@ def get_student_profile(
     return {
         "id": student.id,
         "user_id": current_user.id,
+
         "name": current_user.name,
         "email": current_user.email,
+
+        "phone": student.phone,
+        "college": student.college,
+        "degree": student.degree,
+        "branch": student.branch,
+        "graduation_year": student.graduation_year,
+
         "career_goal": student.career_goal,
+        "preferred_location": student.preferred_location,
+
         "readiness": student.readiness,
+    }
+
+# ============================================================
+# UPDATE STUDENT PROFILE
+# ============================================================
+
+@router.put("/profile")
+def update_student_profile(
+    request: StudentProfileUpdate,
+    current_user: User = Depends(
+        require_role("STUDENT")
+    ),
+    db: Session = Depends(get_db),
+):
+
+    # --------------------------------------------------------
+    # Find student
+    # --------------------------------------------------------
+
+    student = (
+        db.query(Student)
+        .filter(
+            Student.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if not student:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Student profile not found.",
+        )
+
+
+    # --------------------------------------------------------
+    # Check email
+    # --------------------------------------------------------
+
+    existing_user = (
+        db.query(User)
+        .filter(
+            User.email == request.email,
+            User.id != current_user.id,
+        )
+        .first()
+    )
+
+    if existing_user:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Email already registered.",
+        )
+
+
+    # --------------------------------------------------------
+    # Update User information
+    # --------------------------------------------------------
+
+    current_user.name = request.name
+    current_user.email = request.email
+
+
+    # --------------------------------------------------------
+    # Update Student information
+    # --------------------------------------------------------
+
+    student.phone = request.phone
+    student.college = request.college
+    student.degree = request.degree
+    student.branch = request.branch
+    student.graduation_year = request.graduation_year
+    student.career_goal = request.career_goal
+    student.preferred_location = (
+        request.preferred_location
+    )
+
+
+    # --------------------------------------------------------
+    # Save
+    # --------------------------------------------------------
+
+    db.commit()
+
+    db.refresh(current_user)
+    db.refresh(student)
+
+
+    return {
+        "message": "Profile updated successfully",
+
+        "profile": {
+            "id": student.id,
+            "user_id": current_user.id,
+
+            "name": current_user.name,
+            "email": current_user.email,
+
+            "phone": student.phone,
+            "college": student.college,
+            "degree": student.degree,
+            "branch": student.branch,
+            "graduation_year": (
+                student.graduation_year
+            ),
+
+            "career_goal": student.career_goal,
+            "preferred_location": (
+                student.preferred_location
+            ),
+
+            "readiness": student.readiness,
+        },
     }
 
 
@@ -649,3 +797,173 @@ def get_student_applications(
         for application, opportunity, company
         in applications
     ]
+
+# ============================================================
+# SUBMIT STUDENT ASSESSMENT
+# ============================================================
+
+@router.post("/assessment")
+def submit_assessment(
+    request: AssessmentRequest,
+    current_user: User = Depends(
+        require_role("STUDENT")
+    ),
+    db: Session = Depends(get_db),
+):
+
+    # --------------------------------------------------------
+    # Find student
+    # --------------------------------------------------------
+
+    student = (
+        db.query(Student)
+        .filter(
+            Student.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if not student:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Student profile not found.",
+        )
+
+
+    # --------------------------------------------------------
+    # Validate answers
+    # --------------------------------------------------------
+
+    if not request.answers:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Assessment answers cannot be empty.",
+        )
+
+
+    for skill_name, score in request.answers.items():
+
+        if score < 0 or score > 100:
+
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Invalid score for {skill_name}. "
+                    "Score must be between 0 and 100."
+                ),
+            )
+
+
+    # --------------------------------------------------------
+    # Update StudentSkill records
+    # --------------------------------------------------------
+
+    updated_skills = []
+
+
+    for skill_name, score in request.answers.items():
+
+        skill = (
+            db.query(Skill)
+            .filter(
+                Skill.name == skill_name
+            )
+            .first()
+        )
+
+        if not skill:
+
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    f"Skill '{skill_name}' "
+                    "not found."
+                ),
+            )
+
+
+        # Find existing StudentSkill
+
+        student_skill = (
+            db.query(StudentSkill)
+            .filter(
+                StudentSkill.student_id == student.id,
+                StudentSkill.skill_id == skill.id,
+            )
+            .first()
+        )
+
+
+        # Create if it doesn't exist
+
+        if not student_skill:
+
+            student_skill = StudentSkill(
+                student_id=student.id,
+                skill_id=skill.id,
+                score=score,
+            )
+
+            db.add(student_skill)
+
+        else:
+
+            student_skill.score = score
+
+
+        updated_skills.append(
+            {
+                "skill_id": skill.id,
+                "name": skill.name,
+                "category": skill.category,
+                "score": score,
+            }
+        )
+
+
+    # --------------------------------------------------------
+    # Calculate readiness
+    # --------------------------------------------------------
+
+    scores = [
+        skill["score"]
+        for skill in updated_skills
+    ]
+
+
+    if scores:
+
+        readiness = round(
+            sum(scores) / len(scores)
+        )
+
+    else:
+
+        readiness = 0
+
+
+    student.readiness = readiness
+
+
+    # --------------------------------------------------------
+    # Save
+    # --------------------------------------------------------
+
+    db.commit()
+
+    db.refresh(student)
+
+
+    # --------------------------------------------------------
+    # Response
+    # --------------------------------------------------------
+
+    return {
+        "message": "Assessment submitted successfully",
+
+        "readiness": readiness,
+
+        "skills": updated_skills,
+    }

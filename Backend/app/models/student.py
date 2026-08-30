@@ -29,3 +29,33 @@ class Student(Base):
         Integer,
         default=0
     )
+
+    phone = Column(
+        String(20),
+        nullable=True
+    )
+
+    college = Column(
+        String(200),
+        nullable=True
+    )
+
+    degree = Column(
+        String(100),
+        nullable=True
+    )
+
+    branch = Column(
+        String(150),
+        nullable=True
+    )
+
+    graduation_year = Column(
+        Integer,
+        nullable=True
+    )
+
+    preferred_location = Column(
+        String(150),
+        nullable=True
+    )

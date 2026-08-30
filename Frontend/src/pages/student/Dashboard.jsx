@@ -1,25 +1,146 @@
+import { useEffect, useState } from "react";
 import StudentLayout from "../../layouts/StudentLayout";
+
 import {
   Target,
   BriefcaseBusiness,
   FileText,
-  TrendingUp
+  TrendingUp,
 } from "lucide-react";
+
 import { Link } from "react-router-dom";
 
-import { student } from "../../data/student";
-import { skills } from "../../data/skills";
-import { opportunities } from "../../data/opportunities";
-import { getProfile } from "../../utils/storage";
+import { apiGet } from "../../services/api";
+
 
 function Dashboard() {
-  const profile = getProfile();
+
+  const [dashboard, setDashboard] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+
+  useEffect(() => {
+
+    async function loadDashboard() {
+
+      try {
+
+        setLoading(true);
+        setError("");
+
+        const data = await apiGet(
+          "/student/dashboard"
+        );
+
+        setDashboard(data);
+
+      } catch (err) {
+
+        console.error(
+          "Dashboard error:",
+          err
+        );
+
+        setError(
+          err.message ||
+          "Unable to load dashboard."
+        );
+
+      } finally {
+
+        setLoading(false);
+
+      }
+    }
+
+    loadDashboard();
+
+  }, []);
+
+
+  // ----------------------------------------------------------
+  // Loading
+  // ----------------------------------------------------------
+
+  if (loading) {
+
+    return (
+      <StudentLayout>
+
+        <div className="p-8">
+
+          <p className="text-slate-500">
+            Loading your dashboard...
+          </p>
+
+        </div>
+
+      </StudentLayout>
+    );
+  }
+
+
+  // ----------------------------------------------------------
+  // Error
+  // ----------------------------------------------------------
+
+  if (error) {
+
+    return (
+      <StudentLayout>
+
+        <div className="p-8">
+
+          <div className="bg-red-50 border border-red-200 rounded-xl p-5">
+
+            <p className="text-red-600 font-medium">
+              Unable to load dashboard
+            </p>
+
+            <p className="text-sm text-red-500 mt-1">
+              {error}
+            </p>
+
+          </div>
+
+        </div>
+
+      </StudentLayout>
+    );
+  }
+
+
+  // ----------------------------------------------------------
+  // Backend data
+  // ----------------------------------------------------------
+
+  const student = dashboard?.student || {};
+  const stats = dashboard?.stats || {};
+
+  const readiness =
+    student.readiness ?? 0;
+
+  const skills =
+    stats.skills ?? 0;
+
+  const skillGaps =
+    stats.skill_gaps ?? 0;
+
+  const matches =
+    stats.matches ?? 0;
+
+  const applications =
+    stats.applications ?? 0;
+
+
   return (
     <StudentLayout>
 
       <div className="p-8">
 
         {/* Header */}
+
         <div className="mb-8">
 
           <p className="text-sm text-slate-500">
@@ -27,7 +148,10 @@ function Dashboard() {
           </p>
 
           <h1 className="text-3xl font-bold text-slate-900 mt-1">
-            Good morning, {profile?.name || "Student"} 
+
+            Good morning,{" "}
+            {student.name || "Student"}
+
           </h1>
 
           <p className="text-slate-500 mt-2">
@@ -36,20 +160,28 @@ function Dashboard() {
 
         </div>
 
+
         {/* Career Readiness */}
+
         <div className="bg-white rounded-2xl border p-6 mb-6">
 
           <div className="flex justify-between items-center">
 
             <div>
+
               <p className="text-sm text-slate-500">
                 Career Goal
               </p>
 
               <h2 className="text-xl font-semibold mt-1">
-                {profile?.careerGoal || "Set your career goal"}
+
+                {student.career_goal ||
+                  "Set your career goal"}
+
               </h2>
+
             </div>
+
 
             <div className="text-right">
 
@@ -58,53 +190,66 @@ function Dashboard() {
               </p>
 
               <p className="text-3xl font-bold text-blue-600">
-                {student.skillReadiness}%
+                {readiness}%
               </p>
 
             </div>
 
           </div>
 
+
           <div className="mt-5 h-3 bg-slate-100 rounded-full overflow-hidden">
 
             <div
               className="h-full bg-blue-600 rounded-full"
-              style={{ width: `${student.readiness}%` }}
+              style={{
+                width: `${readiness}%`,
+              }}
             />
 
           </div>
 
         </div>
 
+
         {/* Stats */}
-        <StatCard
-  icon={<Target />}
-  label="Skills"
-  value={student.stats.skills}
-/>
 
-<StatCard
-  icon={<TrendingUp />}
-  label="Skill Gaps"
-  value={student.stats.skillGaps}
-/>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
 
-<StatCard
-  icon={<BriefcaseBusiness />}
-  label="Matches"
-  value={student.stats.matches}
-/>
+          <StatCard
+            icon={<Target />}
+            label="Skills"
+            value={skills}
+          />
 
-<StatCard
-  icon={<FileText />}
-  label="Applications"
-  value={student.stats.applications}
-/>
+          <StatCard
+            icon={<TrendingUp />}
+            label="Skill Gaps"
+            value={skillGaps}
+          />
+
+          <StatCard
+            icon={<BriefcaseBusiness />}
+            label="Matches"
+            value={matches}
+          />
+
+          <StatCard
+            icon={<FileText />}
+            label="Applications"
+            value={applications}
+          />
+
+        </div>
+
 
         {/* Main Grid */}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
+
           {/* Skills */}
+
           <div className="bg-white border rounded-2xl p-6">
 
             <div className="flex justify-between mb-6">
@@ -114,52 +259,66 @@ function Dashboard() {
               </h2>
 
               <Link
-    to="/skills"
-    className="text-sm text-blue-600"
->
-    View all
-</Link>
+                to="/skills"
+                className="text-sm text-blue-600"
+              >
+                View all
+              </Link>
 
             </div>
 
+
             <div className="space-y-5">
 
-              {skills.map((skill) => (
+              {dashboard?.skills?.length > 0 ? (
 
-                <div key={skill.name}>
+                dashboard.skills.map((skill) => (
 
-                  <div className="flex justify-between text-sm mb-2">
+                  <div key={skill.id}>
 
-                    <span className="font-medium">
-                      {skill.name}
-                    </span>
+                    <div className="flex justify-between text-sm mb-2">
 
-                    <span className="text-slate-500">
-                      {skill.score}%
-                    </span>
+                      <span className="font-medium">
+                        {skill.name}
+                      </span>
+
+                      <span className="text-slate-500">
+                        {skill.score}%
+                      </span>
+
+                    </div>
+
+
+                    <div className="h-2 bg-slate-100 rounded-full">
+
+                      <div
+                        className="h-full bg-blue-600 rounded-full"
+                        style={{
+                          width: `${skill.score}%`,
+                        }}
+                      />
+
+                    </div>
 
                   </div>
 
-                  <div className="h-2 bg-slate-100 rounded-full">
+                ))
 
-                    <div
-                      className="h-full bg-blue-600 rounded-full"
-                      style={{
-                        width: `${skill.score}%`
-                      }}
-                    />
+              ) : (
 
-                  </div>
+                <p className="text-sm text-slate-500">
+                  No skills added yet.
+                </p>
 
-                </div>
-
-              ))}
+              )}
 
             </div>
 
           </div>
 
+
           {/* Opportunities */}
+
           <div className="bg-white border rounded-2xl p-6">
 
             <div className="flex justify-between mb-6">
@@ -169,54 +328,66 @@ function Dashboard() {
               </h2>
 
               <Link
-    to="/opportunities"
-    className="text-sm text-blue-600"
->
-    View all
-</Link>
+                to="/opportunities"
+                className="text-sm text-blue-600"
+              >
+                View all
+              </Link>
 
             </div>
 
+
             <div className="space-y-4">
 
-              {opportunities.map((job) => (
+              {dashboard?.opportunities?.length > 0 ? (
 
-                <div
-                  key={job.title}
-                  className="border rounded-xl p-4 hover:border-blue-300 transition"
-                >
+                dashboard.opportunities.map((job) => (
 
-                  <div className="flex justify-between">
+                  <div
+                    key={job.id}
+                    className="border rounded-xl p-4 hover:border-blue-300 transition"
+                  >
 
-                    <div>
+                    <div className="flex justify-between">
 
-                      <h3 className="font-medium">
-                        {job.title}
-                      </h3>
+                      <div>
 
-                      <p className="text-sm text-slate-500 mt-1">
-                        {job.company}
-                      </p>
+                        <h3 className="font-medium">
+                          {job.title}
+                        </h3>
 
-                    </div>
+                        <p className="text-sm text-slate-500 mt-1">
+                          {job.company}
+                        </p>
 
-                    <div className="text-right">
+                      </div>
 
-                      <p className="text-xs text-slate-500">
-                        Match
-                      </p>
 
-                      <p className="font-bold text-green-600">
-                        {job.match}%
-                      </p>
+                      <div className="text-right">
+
+                        <p className="text-xs text-slate-500">
+                          Match
+                        </p>
+
+                        <p className="font-bold text-green-600">
+                          {job.match}%
+                        </p>
+
+                      </div>
 
                     </div>
 
                   </div>
 
-                </div>
+                ))
 
-              ))}
+              ) : (
+
+                <p className="text-sm text-slate-500">
+                  No recommended opportunities yet.
+                </p>
+
+              )}
 
             </div>
 
@@ -230,7 +401,16 @@ function Dashboard() {
   );
 }
 
-function StatCard({ icon, label, value }) {
+
+// ============================================================
+// STAT CARD
+// ============================================================
+
+function StatCard({
+  icon,
+  label,
+  value,
+}) {
 
   return (
     <div className="bg-white border rounded-2xl p-5">
@@ -247,6 +427,7 @@ function StatCard({ icon, label, value }) {
 
       </div>
 
+
       <p className="text-sm text-slate-500 mt-4">
         {label}
       </p>
@@ -254,5 +435,6 @@ function StatCard({ icon, label, value }) {
     </div>
   );
 }
+
 
 export default Dashboard;

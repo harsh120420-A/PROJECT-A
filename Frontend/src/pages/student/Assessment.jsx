@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import StudentLayout from "../../layouts/StudentLayout";
-import { saveAssessmentResults } from "../../utils/storage";
+import { apiPost } from "../../services/api";
 
 const questions = [
   {
@@ -63,18 +63,49 @@ function Assessment() {
     });
   }
 
-  function handleSubmit(e) {
-    e.preventDefault();
+  async function handleSubmit(e) {
 
-    if (Object.keys(answers).length !== questions.length) {
-      alert("Please answer all questions before submitting.");
-      return;
-    }
+  e.preventDefault();
 
-    saveAssessmentResults(answers);
+  if (
+    Object.keys(answers).length !==
+    questions.length
+  ) {
+
+    alert(
+      "Please answer all questions before submitting."
+    );
+
+    return;
+  }
+
+
+  try {
+
+    await apiPost(
+      "/student/assessment",
+      {
+        answers: answers,
+      }
+    );
+
 
     navigate("/skills");
+
+  } catch (err) {
+
+    console.error(
+      "Assessment submission error:",
+      err
+    );
+
+    alert(
+      err.message ||
+      "Unable to submit assessment."
+    );
+
   }
+}
 
   return (
     <StudentLayout>

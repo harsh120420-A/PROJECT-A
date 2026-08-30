@@ -1,54 +1,55 @@
 from fastapi import FastAPI
-from sqlalchemy import text
+from fastapi.middleware.cors import CORSMiddleware
 
-from .database import engine, Base
 from .auth.routes import router as auth_router
 from .student.routes import router as student_router
 from .industry.routes import router as industry_router
 from .academia.routes import router as academia_router
 
-# Import all models so SQLAlchemy registers them
-from .models import (
-    User,
-    Student,
-    Academician,
-    Company,
-    Skill,
-    StudentSkill,
-    Opportunity,
-    OpportunitySkill,
-    Application,
-    Collaboration,
-    Placement,
-)
-
 
 app = FastAPI(
     title="SkillBridge API",
-    description="Academia–Industry Portal Backend",
+    description="Academia-Industry Student Skill Portal",
     version="1.0.0",
 )
+
+
+# ============================================================
+# CORS
+# ============================================================
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ============================================================
+# ROUTERS
+# ============================================================
+
 app.include_router(auth_router)
 app.include_router(student_router)
 app.include_router(industry_router)
 app.include_router(academia_router)
 
-@app.on_event("startup")
-def create_tables():
 
-    Base.metadata.create_all(
-        bind=engine
-    )
-
+# ============================================================
+# ROOT
+# ============================================================
 
 @app.get("/")
 def root():
 
     return {
-        "message": "SkillBridge API is running",
-        "status": "success",
+        "message": "SkillBridge API is running"
     }
-
 
 @app.get("/health")
 def health_check():
