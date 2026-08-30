@@ -6,13 +6,21 @@ export const opportunities = [
     location: "Bangalore",
     mode: "Hybrid",
     duration: "3 Months",
+
+    // Existing student matching information
     match: 87,
+
+    // Additional opportunity information
+    type: "Internship",
+    sector: "Analytics",
+    deadline: "15 Sep 2026",
+
     skills: [
       "Python",
       "SQL",
       "Power BI",
-      "Statistics"
-    ]
+      "Statistics",
+    ],
   },
 
   {
@@ -22,12 +30,18 @@ export const opportunities = [
     location: "Remote",
     mode: "Remote",
     duration: "6 Months",
+
     match: 82,
+
+    type: "Internship",
+    sector: "Artificial Intelligence",
+    deadline: "20 Sep 2026",
+
     skills: [
       "Python",
       "Machine Learning",
-      "Statistics"
-    ]
+      "Statistics",
+    ],
   },
 
   {
@@ -37,11 +51,17 @@ export const opportunities = [
     location: "Hyderabad",
     mode: "On-site",
     duration: "4 Months",
+
     match: 74,
+
+    type: "Internship",
+    sector: "Analytics",
+    deadline: "25 Sep 2026",
+
     skills: [
       "SQL",
       "Power BI",
-      "Communication"
-    ]
-  }
+      "Communication",
+    ],
+  },
 ];

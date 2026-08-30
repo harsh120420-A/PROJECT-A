@@ -1,3 +1,7 @@
+import {
+  getApplicationsForOpportunity,
+  updateApplicationStatus
+} from "../../utils/application";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -50,6 +54,9 @@ function CandidateProfile() {
 
   const [shortlisted, setShortlisted] =
     useState(false);
+
+  const [status, setStatus] =
+    useState("Shortlisted");
 
 
   useEffect(() => {
@@ -119,6 +126,39 @@ function CandidateProfile() {
       savedShortlist === "true"
     );
 
+    const applications =
+  getApplicationsForOpportunity(
+    Number(opportunityId)
+  );
+
+
+const application =
+  applications.find(
+    (item) =>
+      item.studentId ===
+      selectedCandidate.id
+  );
+
+
+if (application) {
+
+  setStatus(
+    application.status
+  );
+
+  setShortlisted(
+    application.status !==
+      "Applied"
+  );
+
+} else {
+
+  setStatus("Applied");
+
+  setShortlisted(false);
+
+}
+
   }, [
     candidateId,
     opportunityId
@@ -127,23 +167,158 @@ function CandidateProfile() {
 
   function toggleShortlist() {
 
-    const key =
-      `shortlisted_${opportunityId}_${candidateId}`;
+  const applications =
+    getApplicationsForOpportunity(
+      Number(opportunityId)
+    );
 
 
-    const newStatus =
-      !shortlisted;
+  const existingApplication =
+    applications.find(
+      (application) =>
+        application.studentId ===
+        candidate.id
+    );
 
 
-    setShortlisted(newStatus);
+  if (shortlisted) {
+
+    if (existingApplication) {
+
+      updateApplicationStatus(
+        existingApplication.id,
+        "Applied"
+      );
+
+    }
+
+    setShortlisted(false);
+
+    setStatus("Applied");
+
+    return;
+
+  }
+
+
+  if (existingApplication) {
+
+    updateApplicationStatus(
+      existingApplication.id,
+      "Shortlisted"
+    );
+
+  } else {
+
+    const newApplication = {
+
+      id: Date.now(),
+
+      opportunityId:
+        Number(opportunityId),
+
+      opportunityTitle:
+        opportunity.title,
+
+      company:
+        opportunity.company ||
+        "Industry Partner",
+
+      studentId:
+        candidate.id,
+
+      status:
+        "Shortlisted",
+
+      appliedDate:
+        new Date().toISOString(),
+
+      updatedDate:
+        new Date().toISOString(),
+
+      matchScore:
+        match
+
+    };
+
+
+    const existingApplications =
+      JSON.parse(
+        localStorage.getItem(
+          "applications"
+        ) || "[]"
+      );
 
 
     localStorage.setItem(
-      key,
-      newStatus.toString()
+      "applications",
+      JSON.stringify([
+        ...existingApplications,
+        newApplication
+      ])
     );
 
   }
+
+
+  setShortlisted(true);
+
+  setStatus("Shortlisted");
+
+}
+
+  function updateStatus(newStatus) {
+
+  const key =
+    `status_${opportunityId}_${candidateId}`;
+
+
+  localStorage.setItem(
+    key,
+    newStatus
+  );
+
+
+  const applications =
+    getApplicationsForOpportunity(
+      Number(opportunityId)
+    );
+
+
+  const application =
+    applications.find(
+      (item) =>
+        item.studentId ===
+        candidate.id
+    );
+
+
+  if (application) {
+
+    updateApplicationStatus(
+      application.id,
+      newStatus
+    );
+
+  }
+
+
+  setStatus(newStatus);
+
+
+  if (newStatus === "Shortlisted") {
+
+    setShortlisted(true);
+
+  } else {
+
+    setShortlisted(
+      newStatus !== "Applied"
+    );
+
+  }
+
+}
 
 
   if (!candidate || !opportunity) {
@@ -708,7 +883,60 @@ function CandidateProfile() {
 
         </div>
 
+                {/* Recruitment Status */}
 
+<div className="bg-white border rounded-2xl p-6 mt-6">
+
+  <h2 className="text-xl font-semibold">
+    Recruitment Status
+  </h2>
+
+  <p className="text-sm text-slate-500 mt-1">
+    Track the candidate through your recruitment process.
+  </p>
+
+
+  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
+
+    {[
+      "Shortlisted",
+      "Interview",
+      "Selected",
+      "Rejected"
+    ].map((option) => (
+
+      <button
+        key={option}
+        onClick={() =>
+          updateStatus(option)
+        }
+        className={`px-4 py-3 rounded-xl text-sm font-medium border ${
+          status === option
+            ? "bg-blue-600 text-white border-blue-600"
+            : "bg-white text-slate-600 hover:bg-slate-50"
+        }`}
+      >
+        {option}
+      </button>
+
+    ))}
+
+  </div>
+
+
+  <div className="mt-5 p-4 bg-slate-50 rounded-xl">
+
+    <p className="text-xs text-slate-400">
+      Current Status
+    </p>
+
+    <p className="font-semibold mt-1">
+      {status}
+    </p>
+
+  </div>
+
+</div>
         {/* Bottom Actions */}
 
         <div className="flex justify-end gap-3 mt-6">
