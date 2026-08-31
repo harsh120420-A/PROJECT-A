@@ -1,10 +1,20 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+
+from .database import Base, engine
+
+# Import models so SQLAlchemy registers all tables
+from . import models
 
 from .auth.routes import router as auth_router
 from .student.routes import router as student_router
 from .industry.routes import router as industry_router
 from .academia.routes import router as academia_router
+
+
+# Create database tables
+Base.metadata.create_all(bind=engine)
 
 
 app = FastAPI(

@@ -9,3 +9,8 @@ from .opportunity_skill import OpportunitySkill
 from .application import Application
 from .collaboration import Collaboration
 from .placement import Placement
+from .project import Project
+from .certification import Certification
+from .achievement import Achievement
+from .learning_resource import LearningResource
+from .student_learning import StudentLearning

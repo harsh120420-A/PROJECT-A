@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from datetime import datetime
 
 from ..database import get_db
 from ..models import (
@@ -12,8 +13,20 @@ from ..models import (
     Company,
     OpportunitySkill,
     Application,
+    Project,
+    Certification,
+    Achievement,
+    LearningResource,
+    StudentLearning,
 )
 from ..auth.dependencies import require_role
+from .schemas import (
+    ProjectCreate,
+    CertificationCreate,
+    AchievementCreate,
+    LearningResourceCreate,
+    LearningProgressUpdate,
+)
 
 router = APIRouter(
     prefix="/student",
@@ -966,4 +979,662 @@ def submit_assessment(
         "readiness": readiness,
 
         "skills": updated_skills,
+    }
+
+@router.get("/portfolio")
+def get_student_portfolio(
+    current_user: User = Depends(
+        require_role("STUDENT")
+    ),
+    db: Session = Depends(get_db),
+):
+
+    student = (
+        db.query(Student)
+        .filter(
+            Student.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if not student:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Student profile not found.",
+        )
+
+
+    projects = (
+        db.query(Project)
+        .filter(
+            Project.student_id == student.id
+        )
+        .order_by(Project.id.desc())
+        .all()
+    )
+
+
+    certifications = (
+        db.query(Certification)
+        .filter(
+            Certification.student_id == student.id
+        )
+        .order_by(Certification.id.desc())
+        .all()
+    )
+
+
+    achievements = (
+        db.query(Achievement)
+        .filter(
+            Achievement.student_id == student.id
+        )
+        .order_by(Achievement.id.desc())
+        .all()
+    )
+
+
+    return {
+        "projects": [
+            {
+                "id": project.id,
+                "title": project.title,
+                "description": project.description,
+                "technologies": (
+                    [
+                        item.strip()
+                        for item in project.technologies.split(",")
+                        if item.strip()
+                    ]
+                    if project.technologies
+                    else []
+                ),
+                "github": project.github,
+                "demo": project.demo,
+                "created_at": project.created_at,
+            }
+            for project in projects
+        ],
+
+        "certifications": [
+            {
+                "id": certification.id,
+                "name": certification.name,
+                "issuer": certification.issuer,
+                "date": certification.date,
+                "created_at": certification.created_at,
+            }
+            for certification in certifications
+        ],
+
+        "achievements": [
+            {
+                "id": achievement.id,
+                "title": achievement.title,
+                "description": achievement.description,
+                "date": achievement.date,
+                "created_at": achievement.created_at,
+            }
+            for achievement in achievements
+        ],
+    }
+
+@router.post("/portfolio/projects")
+def create_project(
+    request: ProjectCreate,
+    current_user: User = Depends(
+        require_role("STUDENT")
+    ),
+    db: Session = Depends(get_db),
+):
+
+    student = (
+        db.query(Student)
+        .filter(
+            Student.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if not student:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Student profile not found.",
+        )
+
+
+    project = Project(
+        student_id=student.id,
+        title=request.title,
+        description=request.description,
+        technologies=", ".join(
+            request.technologies
+        ),
+        github=request.github,
+        demo=request.demo,
+    )
+
+
+    db.add(project)
+
+    db.commit()
+
+    db.refresh(project)
+
+
+    return {
+        "message": "Project added successfully",
+
+        "project": {
+            "id": project.id,
+            "title": project.title,
+            "description": project.description,
+            "technologies": request.technologies,
+            "github": project.github,
+            "demo": project.demo,
+        },
+    }
+
+@router.delete("/portfolio/projects/{project_id}")
+def delete_project(
+    project_id: int,
+    current_user: User = Depends(
+        require_role("STUDENT")
+    ),
+    db: Session = Depends(get_db),
+):
+
+    student = (
+        db.query(Student)
+        .filter(
+            Student.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if not student:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Student profile not found.",
+        )
+
+
+    project = (
+        db.query(Project)
+        .filter(
+            Project.id == project_id,
+            Project.student_id == student.id,
+        )
+        .first()
+    )
+
+    if not project:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Project not found.",
+        )
+
+
+    db.delete(project)
+
+    db.commit()
+
+
+    return {
+        "message": "Project deleted successfully"
+    }
+
+@router.post("/portfolio/certifications")
+def create_certification(
+    request: CertificationCreate,
+    current_user: User = Depends(
+        require_role("STUDENT")
+    ),
+    db: Session = Depends(get_db),
+):
+
+    student = (
+        db.query(Student)
+        .filter(
+            Student.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if not student:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Student profile not found.",
+        )
+
+
+    certification = Certification(
+        student_id=student.id,
+        name=request.name,
+        issuer=request.issuer,
+        date=request.date,
+    )
+
+
+    db.add(certification)
+
+    db.commit()
+
+    db.refresh(certification)
+
+
+    return {
+        "message": "Certification added successfully",
+
+        "certification": {
+            "id": certification.id,
+            "name": certification.name,
+            "issuer": certification.issuer,
+            "date": certification.date,
+        },
+    }
+
+@router.delete("/portfolio/certifications/{certification_id}")
+def delete_certification(
+    certification_id: int,
+    current_user: User = Depends(
+        require_role("STUDENT")
+    ),
+    db: Session = Depends(get_db),
+):
+
+    student = (
+        db.query(Student)
+        .filter(
+            Student.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if not student:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Student profile not found.",
+        )
+
+
+    certification = (
+        db.query(Certification)
+        .filter(
+            Certification.id == certification_id,
+            Certification.student_id == student.id,
+        )
+        .first()
+    )
+
+    if not certification:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Certification not found.",
+        )
+
+
+    db.delete(certification)
+
+    db.commit()
+
+
+    return {
+        "message": "Certification deleted successfully"
+    }
+
+@router.post("/portfolio/achievements")
+def create_achievement(
+    request: AchievementCreate,
+    current_user: User = Depends(
+        require_role("STUDENT")
+    ),
+    db: Session = Depends(get_db),
+):
+
+    student = (
+        db.query(Student)
+        .filter(
+            Student.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if not student:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Student profile not found.",
+        )
+
+
+    achievement = Achievement(
+        student_id=student.id,
+        title=request.title,
+        description=request.description,
+        date=request.date,
+    )
+
+
+    db.add(achievement)
+
+    db.commit()
+
+    db.refresh(achievement)
+
+
+    return {
+        "message": "Achievement added successfully",
+
+        "achievement": {
+            "id": achievement.id,
+            "title": achievement.title,
+            "description": achievement.description,
+            "date": achievement.date,
+        },
+    }
+
+@router.delete("/portfolio/achievements/{achievement_id}")
+def delete_achievement(
+    achievement_id: int,
+    current_user: User = Depends(
+        require_role("STUDENT")
+    ),
+    db: Session = Depends(get_db),
+):
+
+    student = (
+        db.query(Student)
+        .filter(
+            Student.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if not student:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Student profile not found.",
+        )
+
+
+    achievement = (
+        db.query(Achievement)
+        .filter(
+            Achievement.id == achievement_id,
+            Achievement.student_id == student.id,
+        )
+        .first()
+    )
+
+    if not achievement:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Achievement not found.",
+        )
+
+
+    db.delete(achievement)
+
+    db.commit()
+
+
+    return {
+        "message": "Achievement deleted successfully"
+    }
+
+
+@router.get("/learning")
+def get_learning_resources(
+    current_user: User = Depends(
+        require_role("STUDENT")
+    ),
+    db: Session = Depends(get_db),
+):
+
+    student = (
+        db.query(Student)
+        .filter(
+            Student.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if not student:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Student profile not found.",
+        )
+
+
+    resources = (
+        db.query(
+            LearningResource,
+            Skill,
+        )
+        .join(
+            Skill,
+            LearningResource.skill_id == Skill.id,
+        )
+        .all()
+    )
+
+
+    progress_records = (
+        db.query(StudentLearning)
+        .filter(
+            StudentLearning.student_id == student.id
+        )
+        .all()
+    )
+
+
+    progress_map = {
+        record.resource_id: record
+        for record in progress_records
+    }
+
+
+    return [
+
+        {
+            "id": resource.id,
+            "skill_id": resource.skill_id,
+            "skill": skill.name,
+            "title": resource.title,
+            "description": resource.description,
+            "provider": resource.provider,
+            "difficulty": resource.difficulty,
+            "duration": resource.duration,
+            "url": resource.url,
+
+            "status": (
+                progress_map[resource.id].status
+                if resource.id in progress_map
+                else "Not Started"
+            ),
+
+            "progress": (
+                progress_map[resource.id].progress
+                if resource.id in progress_map
+                else 0
+            ),
+        }
+
+        for resource, skill in resources
+
+    ]
+
+@router.post("/learning/{resource_id}/start")
+def start_learning(
+    resource_id: int,
+    current_user: User = Depends(
+        require_role("STUDENT")
+    ),
+    db: Session = Depends(get_db),
+):
+
+    student = (
+        db.query(Student)
+        .filter(
+            Student.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if not student:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Student profile not found.",
+        )
+
+
+    resource = (
+        db.query(LearningResource)
+        .filter(
+            LearningResource.id == resource_id
+        )
+        .first()
+    )
+
+    if not resource:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Learning resource not found.",
+        )
+
+
+    existing = (
+        db.query(StudentLearning)
+        .filter(
+            StudentLearning.student_id == student.id,
+            StudentLearning.resource_id == resource_id,
+        )
+        .first()
+    )
+
+
+    if existing:
+
+        existing.status = "In Progress"
+
+        if existing.progress == 0:
+            existing.progress = 1
+
+        db.commit()
+        db.refresh(existing)
+
+        return {
+            "message": "Learning resource already started",
+            "status": existing.status,
+            "progress": existing.progress,
+        }
+
+
+    learning = StudentLearning(
+        student_id=student.id,
+        resource_id=resource_id,
+        status="In Progress",
+        progress=1,
+    )
+
+
+    db.add(learning)
+
+    db.commit()
+
+    db.refresh(learning)
+
+
+    return {
+        "message": "Learning resource started successfully",
+        "status": learning.status,
+        "progress": learning.progress,
+    }
+
+
+@router.put("/learning/{resource_id}/progress")
+def update_learning_progress(
+    resource_id: int,
+    request: LearningProgressUpdate,
+    current_user: User = Depends(
+        require_role("STUDENT")
+    ),
+    db: Session = Depends(get_db),
+):
+
+    if request.progress < 0 or request.progress > 100:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Progress must be between 0 and 100.",
+        )
+
+
+    student = (
+        db.query(Student)
+        .filter(
+            Student.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if not student:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Student profile not found.",
+        )
+
+
+    learning = (
+        db.query(StudentLearning)
+        .filter(
+            StudentLearning.student_id == student.id,
+            StudentLearning.resource_id == resource_id,
+        )
+        .first()
+    )
+
+    if not learning:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Learning progress not found. Start the resource first.",
+        )
+
+
+    learning.progress = request.progress
+
+    if request.progress == 100:
+
+        learning.status = "Completed"
+        learning.completed_at = datetime.now()
+
+    elif request.progress > 0:
+
+        learning.status = "In Progress"
+
+
+    db.commit()
+
+    db.refresh(learning)
+
+
+    return {
+        "message": "Learning progress updated successfully",
+        "status": learning.status,
+        "progress": learning.progress,
     }

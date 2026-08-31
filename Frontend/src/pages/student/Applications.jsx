@@ -1,12 +1,8 @@
 import { useEffect, useState } from "react";
 import StudentLayout from "../../layouts/StudentLayout";
+import { apiGet } from "../../services/api";
+import { useNavigate } from "react-router-dom";
 
-import {
-  getApplicationsForStudent
-} from "../../utils/application";
-import {
-  getCurrentStudentId
-} from "../../utils/currentStudent";
 
 function ApplicationProgress({ status }) {
 
@@ -17,14 +13,12 @@ function ApplicationProgress({ status }) {
     "Selected"
   ];
 
-
-  const currentIndex =
-    stages.indexOf(status);
+  const currentIndex = stages.indexOf(status);
 
 
-  /*
-   * Rejected is handled separately
-   */
+  // --------------------------------------------------------
+  // Rejected
+  // --------------------------------------------------------
 
   if (status === "Rejected") {
 
@@ -44,20 +38,13 @@ function ApplicationProgress({ status }) {
 
                 <div className="flex flex-col items-center">
 
-                  <div
-                    className={`w-3 h-3 rounded-full ${
-                      index <= 2
-                        ? "bg-blue-600"
-                        : "bg-slate-200"
-                    }`}
-                  />
+                  <div className="w-3 h-3 rounded-full bg-blue-600" />
 
                   <span className="text-xs text-slate-400 mt-1">
                     {stage}
                   </span>
 
                 </div>
-
 
                 {index < 2 && (
 
@@ -71,7 +58,6 @@ function ApplicationProgress({ status }) {
           )}
 
         </div>
-
 
         <div className="mt-4">
 
@@ -122,9 +108,7 @@ function ApplicationProgress({ status }) {
 
             </div>
 
-
-            {index <
-              stages.length - 1 && (
+            {index < stages.length - 1 && (
 
               <div
                 className={`w-10 h-0.5 mx-2 ${
@@ -148,30 +132,28 @@ function ApplicationProgress({ status }) {
 }
 
 
+// ==========================================================
+// STATUS STYLE
+// ==========================================================
+
 function getStatusStyle(status) {
 
   switch (status) {
 
     case "Selected":
-
       return "bg-green-50 text-green-700";
 
     case "Interview":
-
       return "bg-blue-50 text-blue-700";
 
     case "Shortlisted":
-
       return "bg-yellow-50 text-yellow-700";
 
     case "Rejected":
-
       return "bg-red-50 text-red-600";
 
     case "Applied":
-
     default:
-
       return "bg-slate-100 text-slate-600";
 
   }
@@ -179,25 +161,21 @@ function getStatusStyle(status) {
 }
 
 
+// ==========================================================
+// DATE FORMAT
+// ==========================================================
+
 function formatDate(date) {
 
   if (!date) {
     return "Date unavailable";
   }
 
+  const parsedDate = new Date(date);
 
-  const parsedDate =
-    new Date(date);
-
-
-  if (Number.isNaN(
-    parsedDate.getTime()
-  )) {
-
+  if (Number.isNaN(parsedDate.getTime())) {
     return date;
-
   }
-
 
   return parsedDate.toLocaleDateString(
     "en-IN",
@@ -211,25 +189,68 @@ function formatDate(date) {
 }
 
 
+// ==========================================================
+// APPLICATIONS
+// ==========================================================
+
 function Applications() {
+
+  const navigate = useNavigate();
 
   const [applications, setApplications] =
     useState([]);
 
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState("");
+
+
+  // ========================================================
+  // LOAD APPLICATIONS FROM BACKEND
+  // ========================================================
 
   useEffect(() => {
 
-    const studentId =
-  getCurrentStudentId();
+    async function loadApplications() {
 
-const studentApplications =
-  getApplicationsForStudent(
-    studentId
-  );
+      try {
 
-    setApplications(
-      studentApplications
-    );
+        setLoading(true);
+        setError("");
+
+        const data = await apiGet(
+          "/student/applications"
+        );
+
+        setApplications(
+          Array.isArray(data)
+            ? data
+            : []
+        );
+
+      } catch (err) {
+
+        console.error(
+          "Applications error:",
+          err
+        );
+
+        setError(
+          err.message ||
+          "Unable to load applications."
+        );
+
+      } finally {
+
+        setLoading(false);
+
+      }
+
+    }
+
+    loadApplications();
 
   }, []);
 
@@ -240,57 +261,72 @@ const studentApplications =
 
       <div className="p-8">
 
-        {/* Page Header */}
+        {/* ==================================================
+            PAGE HEADER
+        ================================================== */}
 
         <p className="text-sm text-blue-600 font-medium">
           APPLICATIONS
         </p>
 
-
         <h1 className="text-3xl font-bold text-slate-900 mt-2">
           My Applications
         </h1>
-
 
         <p className="text-slate-500 mt-2">
           Track your internship and job applications.
         </p>
 
 
-        {/* Applications */}
+        {/* ==================================================
+            LOADING
+        ================================================== */}
 
-        <div className="mt-8 space-y-5">
+        {loading && (
 
-          {applications.length === 0 ? (
+          <div className="mt-8 bg-white border rounded-2xl p-8">
 
-            <div className="bg-white border rounded-2xl p-10 text-center">
+            <p className="text-slate-500">
+              Loading applications...
+            </p>
 
-              <h2 className="text-xl font-semibold">
-                No applications yet
-              </h2>
+          </div>
 
-
-              <p className="text-slate-500 mt-2">
-                Explore opportunities and apply for roles
-                that match your skills.
-              </p>
+        )}
 
 
-              <button
-                onClick={() =>
-                  window.location.href =
-                    "/student/opportunities"
-                }
-                className="mt-5 px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
-              >
-                Explore Opportunities
-              </button>
+        {/* ==================================================
+            ERROR
+        ================================================== */}
 
-            </div>
+        {!loading && error && (
 
-          ) : (
+          <div className="mt-8 bg-red-50 border border-red-200 rounded-2xl p-6">
 
-            applications.map(
+            <p className="font-medium text-red-600">
+              Unable to load applications
+            </p>
+
+            <p className="text-sm text-red-500 mt-1">
+              {error}
+            </p>
+
+          </div>
+
+        )}
+
+
+        {/* ==================================================
+            APPLICATIONS
+        ================================================== */}
+
+        {!loading &&
+          !error &&
+          applications.length > 0 && (
+
+          <div className="mt-8 space-y-5">
+
+            {applications.map(
               (application) => (
 
                 <div
@@ -305,19 +341,17 @@ const studentApplications =
                     <div>
 
                       <h2 className="text-xl font-semibold text-slate-900">
-                        {application.opportunityTitle}
+                        {application.title}
                       </h2>
-
 
                       <p className="text-slate-500 mt-1">
                         {application.company}
                       </p>
 
-
                       <p className="text-sm text-slate-400 mt-2">
                         Applied on{" "}
                         {formatDate(
-                          application.appliedDate
+                          application.applied_at
                         )}
                       </p>
 
@@ -332,7 +366,6 @@ const studentApplications =
                         Current Status
                       </p>
 
-
                       <span
                         className={`inline-block mt-2 px-3 py-1 text-sm rounded-full ${getStatusStyle(
                           application.status
@@ -346,43 +379,56 @@ const studentApplications =
                   </div>
 
 
-                  {/* Match Score */}
+                  {/* Opportunity Details */}
 
-                  {application.matchScore > 0 && (
+                  <div className="mt-5 pt-5 border-t">
 
-                    <div className="mt-5 pt-5 border-t">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
-                      <div className="flex items-center justify-between">
+                      <div>
 
-                        <p className="text-sm text-slate-500">
-                          Skill Match
+                        <p className="text-xs text-slate-400">
+                          Location
                         </p>
 
-
-                        <p className="text-sm font-semibold text-green-600">
-                          {application.matchScore}%
+                        <p className="text-sm text-slate-700 mt-1">
+                          {application.location ||
+                            "Not specified"}
                         </p>
 
                       </div>
 
 
-                      <div className="h-2 bg-slate-100 rounded-full mt-2">
+                      <div>
 
-                        <div
-                          className="h-full bg-blue-600 rounded-full"
-                          style={{
-                            width: `${Math.min(
-                              application.matchScore,
-                              100
-                            )}%`
-                          }}
-                        />
+                        <p className="text-xs text-slate-400">
+                          Mode
+                        </p>
+
+                        <p className="text-sm text-slate-700 mt-1">
+                          {application.mode ||
+                            "Not specified"}
+                        </p>
+
+                      </div>
+
+
+                      <div>
+
+                        <p className="text-xs text-slate-400">
+                          Duration
+                        </p>
+
+                        <p className="text-sm text-slate-700 mt-1">
+                          {application.duration ||
+                            "Not specified"}
+                        </p>
 
                       </div>
 
                     </div>
 
-                  )}
+                  </div>
 
 
                   {/* Progress */}
@@ -393,30 +439,49 @@ const studentApplications =
                     }
                   />
 
-
-                  {/* Last Updated */}
-
-                  {application.updatedDate && (
-
-                    <p className="text-xs text-slate-400 mt-5 pt-4 border-t">
-
-                      Last updated{" "}
-                      {formatDate(
-                        application.updatedDate
-                      )}
-
-                    </p>
-
-                  )}
-
                 </div>
 
               )
-            )
+            )}
 
-          )}
+          </div>
 
-        </div>
+        )}
+
+
+        {/* ==================================================
+            EMPTY STATE
+        ================================================== */}
+
+        {!loading &&
+          !error &&
+          applications.length === 0 && (
+
+          <div className="mt-8 bg-white border rounded-2xl p-10 text-center">
+
+            <h2 className="text-xl font-semibold">
+              No applications yet
+            </h2>
+
+            <p className="text-slate-500 mt-2">
+              Explore opportunities and apply for roles
+              that match your skills.
+            </p>
+
+            <button
+              onClick={() =>
+                navigate(
+                  "/student/opportunities"
+                )
+              }
+              className="mt-5 px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
+            >
+              Explore Opportunities
+            </button>
+
+          </div>
+
+        )}
 
       </div>
 
@@ -425,6 +490,5 @@ const studentApplications =
   );
 
 }
-
 
 export default Applications;
