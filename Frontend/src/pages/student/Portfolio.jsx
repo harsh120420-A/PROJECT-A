@@ -4,13 +4,7 @@ import StudentLayout from "../../layouts/StudentLayout";
 import { student } from "../../data/student";
 import { skills as defaultSkills } from "../../data/skills";
 
-import {
-  getProfile,
-  getApplications,
-  getAssessmentResults,
-  getPortfolio,
-  savePortfolio
-} from "../../utils/storage";
+import { apiGet, apiPost, apiDelete } from "../../services/api";
 
 import {
   ExternalLink,
@@ -36,7 +30,12 @@ function Portfolio() {
     achievements: []
   });
 
-  const [showProjectForm, setShowProjectForm] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const [error, setError] = useState("");
+
+  const [showProjectForm, setShowProjectForm] =
+    useState(false);
 
   const [showCertificationForm, setShowCertificationForm] =
     useState(false);
@@ -68,53 +67,117 @@ function Portfolio() {
   });
 
 
+  // ==========================================================
+  // LOAD PORTFOLIO DATA
+  // ==========================================================
+
   useEffect(() => {
 
-    const storedProfile = getProfile();
+    async function loadPortfolio() {
 
-    if (storedProfile) {
-      setProfile(storedProfile);
+      try {
+
+        setLoading(true);
+        setError("");
+
+        const [
+          portfolioData,
+          skillsData,
+          applicationsData
+        ] = await Promise.all([
+
+          apiGet("/student/portfolio"),
+
+          apiGet("/student/skills"),
+
+          apiGet("/student/applications")
+
+        ]);
+
+
+        // ----------------------------------------------------
+        // Portfolio
+        // ----------------------------------------------------
+
+        setPortfolio({
+
+          projects:
+            Array.isArray(
+              portfolioData?.projects
+            )
+              ? portfolioData.projects
+              : [],
+
+          certifications:
+            Array.isArray(
+              portfolioData?.certifications
+            )
+              ? portfolioData.certifications
+              : [],
+
+          achievements:
+            Array.isArray(
+              portfolioData?.achievements
+            )
+              ? portfolioData.achievements
+              : []
+
+        });
+
+
+        // ----------------------------------------------------
+        // Skills
+        // ----------------------------------------------------
+
+        if (Array.isArray(skillsData)) {
+
+          setSkills(skillsData);
+
+        }
+
+
+        // ----------------------------------------------------
+        // Applications
+        // ----------------------------------------------------
+
+        setApplications(
+
+          Array.isArray(applicationsData)
+            ? applicationsData
+            : []
+
+        );
+
+
+      } catch (err) {
+
+        console.error(
+          "Portfolio loading error:",
+          err
+        );
+
+        setError(
+          err.message ||
+          "Unable to load portfolio."
+        );
+
+      } finally {
+
+        setLoading(false);
+
+      }
+
     }
 
 
-    const storedApplications = getApplications();
-
-    setApplications(storedApplications);
-
-
-    const storedPortfolio = getPortfolio();
-
-    setPortfolio(storedPortfolio);
-
-
-    const assessmentResults = getAssessmentResults();
-
-    if (assessmentResults) {
-
-      const updatedSkills = defaultSkills.map((skill) => ({
-        ...skill,
-
-        score:
-          assessmentResults[skill.name] !== undefined
-            ? assessmentResults[skill.name]
-            : skill.score
-      }));
-
-      setSkills(updatedSkills);
-
-    }
+    loadPortfolio();
 
   }, []);
 
 
-  function updatePortfolio(updatedPortfolio) {
-
-    setPortfolio(updatedPortfolio);
-
-    savePortfolio(updatedPortfolio);
-
-  }
-
+  // ==========================================================
+  // FORM HANDLERS
+  // ==========================================================
 
   function handleProjectChange(e) {
 
@@ -152,7 +215,11 @@ function Portfolio() {
   }
 
 
-  function addProject(e) {
+  // ==========================================================
+  // ADD PROJECT
+  // ==========================================================
+
+  async function addProject(e) {
 
     e.preventDefault();
 
@@ -161,40 +228,87 @@ function Portfolio() {
     }
 
 
-    const newProject = {
-      id: Date.now(),
-      ...projectForm,
-      technologies: projectForm.technologies
-        .split(",")
-        .map((technology) => technology.trim())
-        .filter(Boolean)
-    };
+    try {
+
+      const response = await apiPost(
+        "/student/portfolio/projects",
+        {
+          title: projectForm.title.trim(),
+
+          description:
+            projectForm.description.trim() ||
+            null,
+
+          technologies:
+            projectForm.technologies
+              .split(",")
+              .map(
+                (technology) =>
+                  technology.trim()
+              )
+              .filter(Boolean),
+
+          github:
+            projectForm.github.trim() ||
+            null,
+
+          demo:
+            projectForm.demo.trim() ||
+            null
+        }
+      );
 
 
-    updatePortfolio({
-      ...portfolio,
-      projects: [
-        ...portfolio.projects,
-        newProject
-      ]
-    });
+      const newProject =
+        response.project;
 
 
-    setProjectForm({
-      title: "",
-      description: "",
-      technologies: "",
-      github: "",
-      demo: ""
-    });
+      setPortfolio((previous) => ({
+
+        ...previous,
+
+        projects: [
+          newProject,
+          ...previous.projects
+        ]
+
+      }));
 
 
-    setShowProjectForm(false);
+      setProjectForm({
+        title: "",
+        description: "",
+        technologies: "",
+        github: "",
+        demo: ""
+      });
+
+
+      setShowProjectForm(false);
+
+
+    } catch (err) {
+
+      console.error(
+        "Project error:",
+        err
+      );
+
+      alert(
+        err.message ||
+        "Unable to add project."
+      );
+
+    }
 
   }
 
 
-  function addCertification(e) {
+  // ==========================================================
+  // ADD CERTIFICATION
+  // ==========================================================
+
+  async function addCertification(e) {
 
     e.preventDefault();
 
@@ -203,34 +317,73 @@ function Portfolio() {
     }
 
 
-    const newCertification = {
-      id: Date.now(),
-      ...certificationForm
-    };
+    try {
+
+      const response = await apiPost(
+        "/student/portfolio/certifications",
+        {
+          name:
+            certificationForm.name.trim(),
+
+          issuer:
+            certificationForm.issuer.trim() ||
+            null,
+
+          date:
+            certificationForm.date ||
+            null
+        }
+      );
 
 
-    updatePortfolio({
-      ...portfolio,
-      certifications: [
-        ...portfolio.certifications,
-        newCertification
-      ]
-    });
+      const newCertification =
+        response.certification;
 
 
-    setCertificationForm({
-      name: "",
-      issuer: "",
-      date: ""
-    });
+      setPortfolio((previous) => ({
+
+        ...previous,
+
+        certifications: [
+          newCertification,
+          ...previous.certifications
+        ]
+
+      }));
 
 
-    setShowCertificationForm(false);
+      setCertificationForm({
+        name: "",
+        issuer: "",
+        date: ""
+      });
+
+
+      setShowCertificationForm(false);
+
+
+    } catch (err) {
+
+      console.error(
+        "Certification error:",
+        err
+      );
+
+      alert(
+        err.message ||
+        "Unable to add certification."
+      );
+
+    }
 
   }
 
 
-  function addAchievement(e) {
+  // ==========================================================
+  // ADD ACHIEVEMENT
+  // ==========================================================
+
+  async function addAchievement(e) {
 
     e.preventDefault();
 
@@ -239,87 +392,290 @@ function Portfolio() {
     }
 
 
-    const newAchievement = {
-      id: Date.now(),
-      ...achievementForm
-    };
+    try {
+
+      const response = await apiPost(
+        "/student/portfolio/achievements",
+        {
+          title:
+            achievementForm.title.trim(),
+
+          description:
+            achievementForm.description.trim() ||
+            null,
+
+          date:
+            achievementForm.date ||
+            null
+        }
+      );
 
 
-    updatePortfolio({
-      ...portfolio,
-      achievements: [
-        ...portfolio.achievements,
-        newAchievement
-      ]
-    });
+      const newAchievement =
+        response.achievement;
 
 
-    setAchievementForm({
-      title: "",
-      description: "",
-      date: ""
-    });
+      setPortfolio((previous) => ({
+
+        ...previous,
+
+        achievements: [
+          newAchievement,
+          ...previous.achievements
+        ]
+
+      }));
 
 
-    setShowAchievementForm(false);
+      setAchievementForm({
+        title: "",
+        description: "",
+        date: ""
+      });
+
+
+      setShowAchievementForm(false);
+
+
+    } catch (err) {
+
+      console.error(
+        "Achievement error:",
+        err
+      );
+
+      alert(
+        err.message ||
+        "Unable to add achievement."
+      );
+
+    }
+
+  }
+
+
+  // ==========================================================
+  // DELETE PROJECT
+  // ==========================================================
+
+  async function removeProject(id) {
+
+    try {
+
+      await apiDelete(
+        `/student/portfolio/projects/${id}`
+      );
+
+
+      setPortfolio((previous) => ({
+
+        ...previous,
+
+        projects:
+          previous.projects.filter(
+            (project) =>
+              project.id !== id
+          )
+
+      }));
+
+
+    } catch (err) {
+
+      console.error(
+        "Delete project error:",
+        err
+      );
+
+      alert(
+        err.message ||
+        "Unable to delete project."
+      );
+
+    }
 
   }
 
 
-  function removeProject(id) {
+  // ==========================================================
+  // DELETE CERTIFICATION
+  // ==========================================================
 
-    updatePortfolio({
-      ...portfolio,
+  async function removeCertification(id) {
 
-      projects: portfolio.projects.filter(
-        (project) => project.id !== id
-      )
-    });
+    try {
+
+      await apiDelete(
+        `/student/portfolio/certifications/${id}`
+      );
+
+
+      setPortfolio((previous) => ({
+
+        ...previous,
+
+        certifications:
+          previous.certifications.filter(
+            (certification) =>
+              certification.id !== id
+          )
+
+      }));
+
+
+    } catch (err) {
+
+      console.error(
+        "Delete certification error:",
+        err
+      );
+
+      alert(
+        err.message ||
+        "Unable to delete certification."
+      );
+
+    }
 
   }
 
 
-  function removeCertification(id) {
+  // ==========================================================
+  // DELETE ACHIEVEMENT
+  // ==========================================================
 
-    updatePortfolio({
-      ...portfolio,
+  async function removeAchievement(id) {
 
-      certifications:
-        portfolio.certifications.filter(
-          (certification) =>
-            certification.id !== id
-        )
-    });
+    try {
+
+      await apiDelete(
+        `/student/portfolio/achievements/${id}`
+      );
+
+
+      setPortfolio((previous) => ({
+
+        ...previous,
+
+        achievements:
+          previous.achievements.filter(
+            (achievement) =>
+              achievement.id !== id
+          )
+
+      }));
+
+
+    } catch (err) {
+
+      console.error(
+        "Delete achievement error:",
+        err
+      );
+
+      alert(
+        err.message ||
+        "Unable to delete achievement."
+      );
+
+    }
 
   }
 
 
-  function removeAchievement(id) {
-
-    updatePortfolio({
-      ...portfolio,
-
-      achievements:
-        portfolio.achievements.filter(
-          (achievement) =>
-            achievement.id !== id
-        )
-    });
-
-  }
-
+  // ==========================================================
+  // DISPLAY DATA
+  // ==========================================================
 
   const displayName =
-    profile?.name || student.name;
+    profile?.name ||
+    student.name;
 
   const careerGoal =
-    profile?.careerGoal || student.careerGoal;
+    profile?.careerGoal ||
+    student.careerGoal;
 
   const degree =
-    profile?.degree || "Degree not specified";
+    profile?.degree ||
+    "Degree not specified";
 
   const branch =
-    profile?.branch || "Specialization not specified";
+    profile?.branch ||
+    "Specialization not specified";
+
+
+  // ==========================================================
+  // LOADING
+  // ==========================================================
+
+  if (loading) {
+
+    return (
+
+      <StudentLayout>
+
+        <div className="p-8">
+
+          <p className="text-sm text-blue-600 font-medium">
+            DIGITAL PORTFOLIO
+          </p>
+
+          <h1 className="text-3xl font-bold text-slate-900 mt-2">
+            My Portfolio
+          </h1>
+
+          <p className="text-slate-500 mt-2">
+            Loading your portfolio...
+          </p>
+
+        </div>
+
+      </StudentLayout>
+
+    );
+
+  }
+
+
+  // ==========================================================
+  // ERROR
+  // ==========================================================
+
+  if (error) {
+
+    return (
+
+      <StudentLayout>
+
+        <div className="p-8">
+
+          <p className="text-sm text-blue-600 font-medium">
+            DIGITAL PORTFOLIO
+          </p>
+
+          <h1 className="text-3xl font-bold text-slate-900 mt-2">
+            My Portfolio
+          </h1>
+
+          <div className="mt-8 bg-red-50 border border-red-200 rounded-xl p-6">
+
+            <p className="font-medium text-red-600">
+              Unable to load portfolio
+            </p>
+
+            <p className="text-sm text-red-500 mt-1">
+              {error}
+            </p>
+
+          </div>
+
+        </div>
+
+      </StudentLayout>
+
+    );
+
+  }
 
 
   return (
@@ -328,7 +684,9 @@ function Portfolio() {
 
       <div className="p-8">
 
-        {/* Header */}
+        {/* ==================================================
+            HEADER
+        ================================================== */}
 
         <div className="bg-white border rounded-2xl p-8">
 
@@ -387,25 +745,19 @@ function Portfolio() {
         </div>
 
 
-        {/* Skills */}
+        {/* ==================================================
+            SKILLS
+        ================================================== */}
 
         <div className="mt-8 bg-white border rounded-2xl p-6">
 
-          <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold">
+            Skills
+          </h2>
 
-            <div>
-
-              <h2 className="text-xl font-semibold">
-                Skills
-              </h2>
-
-              <p className="text-sm text-slate-500 mt-1">
-                Your current skill profile.
-              </p>
-
-            </div>
-
-          </div>
+          <p className="text-sm text-slate-500 mt-1">
+            Your current skill profile.
+          </p>
 
 
           <div className="mt-6 space-y-5">
@@ -447,7 +799,9 @@ function Portfolio() {
         </div>
 
 
-        {/* Projects */}
+        {/* ==================================================
+            PROJECTS
+        ================================================== */}
 
         <div className="mt-8 bg-white border rounded-2xl p-6">
 
@@ -468,7 +822,9 @@ function Portfolio() {
 
             <button
               onClick={() =>
-                setShowProjectForm(!showProjectForm)
+                setShowProjectForm(
+                  !showProjectForm
+                )
               }
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
             >
@@ -553,6 +909,7 @@ function Portfolio() {
                   Cancel
                 </button>
 
+
                 <button
                   type="submit"
                   className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium"
@@ -585,94 +942,103 @@ function Portfolio() {
 
             ) : (
 
-              portfolio.projects.map((project) => (
+              portfolio.projects.map(
+                (project) => (
 
-                <div
-                  key={project.id}
-                  className="border rounded-xl p-5"
-                >
+                  <div
+                    key={project.id}
+                    className="border rounded-xl p-5"
+                  >
 
-                  <div className="flex justify-between gap-4">
+                    <div className="flex justify-between gap-4">
 
-                    <div>
+                      <div>
 
-                      <h3 className="font-semibold text-lg">
-                        {project.title}
-                      </h3>
+                        <h3 className="font-semibold text-lg">
+                          {project.title}
+                        </h3>
 
-                      <p className="text-slate-500 text-sm mt-2">
-                        {project.description}
-                      </p>
+                        <p className="text-slate-500 text-sm mt-2">
+                          {project.description}
+                        </p>
 
 
-                      <div className="flex flex-wrap gap-2 mt-4">
+                        <div className="flex flex-wrap gap-2 mt-4">
 
-                        {project.technologies.map(
-                          (technology) => (
-
-                            <span
-                              key={technology}
-                              className="px-3 py-1 bg-slate-100 text-slate-600 text-xs rounded-full"
-                            >
-                              {technology}
-                            </span>
-
+                          {(Array.isArray(
+                            project.technologies
                           )
-                        )}
+                            ? project.technologies
+                            : []
+                          ).map(
+                            (technology) => (
+
+                              <span
+                                key={technology}
+                                className="px-3 py-1 bg-slate-100 text-slate-600 text-xs rounded-full"
+                              >
+                                {technology}
+                              </span>
+
+                            )
+                          )}
+
+                        </div>
+
+
+                        <div className="flex gap-4 mt-4">
+
+                          {project.github && (
+
+                            <a
+                              href={project.github}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-1 text-sm text-blue-600"
+                            >
+                              <ExternalLink size={15} />
+                              GitHub
+                            </a>
+
+                          )}
+
+
+                          {project.demo && (
+
+                            <a
+                              href={project.demo}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-1 text-sm text-blue-600"
+                            >
+                              <ExternalLink size={15} />
+                              Live Demo
+                            </a>
+
+                          )}
+
+                        </div>
 
                       </div>
 
 
-                      <div className="flex gap-4 mt-4">
-
-                        {project.github && (
-
-  <a
-    href={project.github}
-    target="_blank"
-    rel="noreferrer"
-    className="flex items-center gap-1 text-sm text-blue-600"
-  >
-    <ExternalLink size={15} />
-    GitHub
-  </a>
-
-)}
-
-
-                        {project.demo && (
-
-                          <a
-                            href={project.demo}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="flex items-center gap-1 text-sm text-blue-600"
-                          >
-                            <ExternalLink size={15} />
-                            Live Demo
-                          </a>
-
-                        )}
-
-                      </div>
+                      <button
+                        onClick={() =>
+                          removeProject(
+                            project.id
+                          )
+                        }
+                        className="text-slate-400 hover:text-red-500"
+                      >
+                        <Trash2 size={18} />
+                      </button>
 
                     </div>
 
-
-                    <button
-                      onClick={() =>
-                        removeProject(project.id)
-                      }
-                      className="text-slate-400 hover:text-red-500"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-
                   </div>
 
-                </div>
-
-              ))
+                )
+              )
 
             )}
 
@@ -681,7 +1047,9 @@ function Portfolio() {
         </div>
 
 
-        {/* Certifications */}
+        {/* ==================================================
+            CERTIFICATIONS
+        ================================================== */}
 
         <div className="mt-8 bg-white border rounded-2xl p-6">
 
@@ -728,26 +1096,34 @@ function Portfolio() {
                   type="text"
                   name="name"
                   value={certificationForm.name}
-                  onChange={handleCertificationChange}
+                  onChange={
+                    handleCertificationChange
+                  }
                   placeholder="Certification name"
                   className="border rounded-lg px-4 py-3 bg-white"
                   required
                 />
 
+
                 <input
                   type="text"
                   name="issuer"
                   value={certificationForm.issuer}
-                  onChange={handleCertificationChange}
+                  onChange={
+                    handleCertificationChange
+                  }
                   placeholder="Issuing organization"
                   className="border rounded-lg px-4 py-3 bg-white"
                 />
+
 
                 <input
                   type="month"
                   name="date"
                   value={certificationForm.date}
-                  onChange={handleCertificationChange}
+                  onChange={
+                    handleCertificationChange
+                  }
                   className="border rounded-lg px-4 py-3 bg-white"
                 />
 
@@ -765,6 +1141,7 @@ function Portfolio() {
                 >
                   Cancel
                 </button>
+
 
                 <button
                   type="submit"
@@ -859,7 +1236,9 @@ function Portfolio() {
         </div>
 
 
-        {/* Internships */}
+        {/* ==================================================
+            INTERNSHIPS
+        ================================================== */}
 
         <div className="mt-8 bg-white border rounded-2xl p-6">
 
@@ -902,37 +1281,46 @@ function Portfolio() {
 
             ) : (
 
-              applications.map((application) => (
+              applications.map(
+                (application) => (
 
-                <div
-                  key={application.id}
-                  className="border rounded-xl p-5 flex justify-between items-center"
-                >
+                  <div
+                    key={application.id}
+                    className="border rounded-xl p-5 flex justify-between items-center"
+                  >
 
-                  <div>
+                    <div>
 
-                    <h3 className="font-semibold">
-                      {application.title}
-                    </h3>
+                      <h3 className="font-semibold">
+                        {application.title}
+                      </h3>
 
-                    <p className="text-sm text-slate-500 mt-1">
-                      {application.company}
-                    </p>
+                      <p className="text-sm text-slate-500 mt-1">
+                        {application.company}
+                      </p>
 
-                    <p className="text-xs text-slate-400 mt-2">
-                      Applied on {application.appliedDate}
-                    </p>
+                      <p className="text-xs text-slate-400 mt-2">
+                        Applied on{" "}
+                        {application.applied_at
+                          ? new Date(
+                              application.applied_at
+                            ).toLocaleDateString(
+                              "en-IN"
+                            )
+                          : "Date unavailable"}
+                      </p>
+
+                    </div>
+
+
+                    <span className="px-3 py-1 bg-blue-50 text-blue-600 text-xs rounded-full">
+                      {application.status}
+                    </span>
 
                   </div>
 
-
-                  <span className="px-3 py-1 bg-blue-50 text-blue-600 text-xs rounded-full">
-                    {application.status}
-                  </span>
-
-                </div>
-
-              ))
+                )
+              )
 
             )}
 
@@ -941,7 +1329,9 @@ function Portfolio() {
         </div>
 
 
-        {/* Achievements */}
+        {/* ==================================================
+            ACHIEVEMENTS
+        ================================================== */}
 
         <div className="mt-8 bg-white border rounded-2xl p-6">
 
@@ -969,7 +1359,7 @@ function Portfolio() {
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
             >
               <Plus size={16} />
-              Add Achievement
+              <span>Add Achievement</span>
             </button>
 
           </div>
@@ -988,24 +1378,34 @@ function Portfolio() {
                   type="text"
                   name="title"
                   value={achievementForm.title}
-                  onChange={handleAchievementChange}
+                  onChange={
+                    handleAchievementChange
+                  }
                   placeholder="Achievement title"
                   className="border rounded-lg px-4 py-3 bg-white"
                   required
                 />
 
+
                 <input
                   type="date"
                   name="date"
                   value={achievementForm.date}
-                  onChange={handleAchievementChange}
+                  onChange={
+                    handleAchievementChange
+                  }
                   className="border rounded-lg px-4 py-3 bg-white"
                 />
 
+
                 <textarea
                   name="description"
-                  value={achievementForm.description}
-                  onChange={handleAchievementChange}
+                  value={
+                    achievementForm.description
+                  }
+                  onChange={
+                    handleAchievementChange
+                  }
                   placeholder="Describe your achievement"
                   rows="3"
                   className="border rounded-lg px-4 py-3 bg-white md:col-span-2"
@@ -1025,6 +1425,7 @@ function Portfolio() {
                 >
                   Cancel
                 </button>
+
 
                 <button
                   type="submit"
@@ -1115,6 +1516,8 @@ function Portfolio() {
     </StudentLayout>
 
   );
+
 }
+
 
 export default Portfolio;
