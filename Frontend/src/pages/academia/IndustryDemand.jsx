@@ -9,120 +9,8 @@ import {
   CheckCircle2,
   GraduationCap,
 } from "lucide-react";
-
-const skillDemandData = [
-  {
-    skill: "Python",
-    demand: 85,
-    supply: 72,
-    gap: 13,
-    postings: 34,
-    trend: "+12%",
-  },
-  {
-    skill: "SQL",
-    demand: 80,
-    supply: 61,
-    gap: 19,
-    postings: 29,
-    trend: "+9%",
-  },
-  {
-    skill: "Machine Learning",
-    demand: 75,
-    supply: 45,
-    gap: 30,
-    postings: 24,
-    trend: "+18%",
-  },
-  {
-    skill: "Cloud Computing",
-    demand: 70,
-    supply: 32,
-    gap: 38,
-    postings: 21,
-    trend: "+22%",
-  },
-  {
-    skill: "Power BI",
-    demand: 65,
-    supply: 30,
-    gap: 35,
-    postings: 18,
-    trend: "+16%",
-  },
-  {
-    skill: "Java",
-    demand: 62,
-    supply: 58,
-    gap: 4,
-    postings: 16,
-    trend: "+5%",
-  },
-  {
-    skill: "React",
-    demand: 59,
-    supply: 54,
-    gap: 5,
-    postings: 14,
-    trend: "+7%",
-  },
-];
-
-const sectorData = [
-  {
-    sector: "Technology",
-    demand: 82,
-    partners: 18,
-  },
-  {
-    sector: "FinTech",
-    demand: 74,
-    partners: 7,
-  },
-  {
-    sector: "Analytics",
-    demand: 71,
-    partners: 6,
-  },
-  {
-    sector: "Consulting",
-    demand: 65,
-    partners: 5,
-  },
-  {
-    sector: "Manufacturing",
-    demand: 54,
-    partners: 6,
-  },
-];
-
-const recommendations = [
-  {
-    skill: "Cloud Computing",
-    demand: 70,
-    readiness: 32,
-    message:
-      "Create an industry-supported cloud certification pathway.",
-    priority: "Critical",
-  },
-  {
-    skill: "Power BI",
-    demand: 65,
-    readiness: 30,
-    message:
-      "Partner with analytics companies for practical dashboard training.",
-    priority: "Critical",
-  },
-  {
-    skill: "Machine Learning",
-    demand: 75,
-    readiness: 45,
-    message:
-      "Launch an ML bootcamp using real-world industry datasets.",
-    priority: "High",
-  },
-];
+import { useEffect, useState } from "react";
+import { apiGet } from "../../services/api";
 
 function getGapStyle(gap) {
   if (gap >= 30) {
@@ -142,12 +30,29 @@ function getBarColor(gap) {
   return "bg-green-500";
 }
 
+function getPriority(gap) {
+  if (gap >= 30) return "Critical";
+  if (gap >= 15) return "High";
+  return "Moderate";
+}
+
+function getPriorityStyle(priority) {
+  if (priority === "Critical") {
+    return "bg-red-50 text-red-600";
+  }
+
+  if (priority === "High") {
+    return "bg-orange-50 text-orange-600";
+  }
+
+  return "bg-yellow-50 text-yellow-700";
+}
+
 function StatCard({
   title,
   value,
   subtitle,
   icon: Icon,
-  trend,
 }) {
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5">
@@ -177,35 +82,108 @@ function StatCard({
 
       </div>
 
-      {trend && (
-        <div className="flex items-center gap-1 mt-4">
-
-          <ArrowUpRight
-            size={14}
-            className="text-green-600"
-          />
-
-          <span className="text-xs font-medium text-green-600">
-            {trend}
-          </span>
-
-          <span className="text-xs text-slate-400">
-            this month
-          </span>
-
-        </div>
-      )}
-
     </div>
   );
 }
 
 function IndustryDemand() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    loadIndustryDemand();
+  }, []);
+
+  async function loadIndustryDemand() {
+    try {
+      setLoading(true);
+      setError("");
+
+      const response = await apiGet(
+        "/academia/industry-demand"
+      );
+
+      setData(response);
+    } catch (err) {
+      setError(
+        err.message ||
+          "Failed to load industry demand data."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <p className="text-slate-500">
+          Loading industry demand analytics...
+        </p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-2xl p-6">
+        <div className="flex items-center gap-3">
+
+          <AlertTriangle
+            size={22}
+            className="text-red-500"
+          />
+
+          <div>
+            <h2 className="font-semibold text-red-700">
+              Unable to load industry demand
+            </h2>
+
+            <p className="text-sm text-red-600 mt-1">
+              {error}
+            </p>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
+  const summary = data?.summary || {};
+  const skills = data?.skills || [];
+
+  const activeOpportunities =
+    summary.active_opportunities || 0;
+
+  const skillsInDemand =
+    summary.skills_in_demand || 0;
+
+  const totalSkillRequirements =
+    summary.total_skill_requirements || 0;
+
+  const skillsWithShortage =
+    summary.skills_with_shortage || 0;
+
+  const highestDemandSkill =
+    summary.highest_demand_skill || "None";
+
+  const largestGapSkill =
+    summary.largest_gap_skill || "None";
+
+  const largestGap =
+    summary.largest_gap || 0;
+
+  const prioritySkills = skills.filter(
+    (item) => item.gap > 0
+  );
+
   return (
     <div className="space-y-7">
 
       {/* Header */}
       <div>
+
         <p className="text-sm text-blue-600 font-medium">
           INDUSTRY CONNECTION
         </p>
@@ -218,6 +196,7 @@ function IndustryDemand() {
           Understand what industries need and compare demand
           with student readiness.
         </p>
+
       </div>
 
 
@@ -225,34 +204,31 @@ function IndustryDemand() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
 
         <StatCard
-          title="Industry Partners"
-          value="42"
-          subtitle="Active organizations"
+          title="Active Opportunities"
+          value={activeOpportunities}
+          subtitle="Currently open industry opportunities"
           icon={Building2}
-          trend="+6%"
         />
 
         <StatCard
-          title="Skills Tracked"
-          value="28"
-          subtitle="Across opportunities"
+          title="Skills in Demand"
+          value={skillsInDemand}
+          subtitle="Skills requested by industry"
           icon={Target}
         />
 
         <StatCard
-          title="High-Demand Skills"
-          value="9"
-          subtitle="Demand above 60%"
-          icon={TrendingUp}
-          trend="+11%"
+          title="Skill Requirements"
+          value={totalSkillRequirements}
+          subtitle="Across active opportunities"
+          icon={BriefcaseBusiness}
         />
 
         <StatCard
-          title="Demand Coverage"
-          value="61%"
-          subtitle="Average student readiness"
-          icon={Users}
-          trend="+4%"
+          title="Skills with Shortage"
+          value={skillsWithShortage}
+          subtitle="Demand exceeds student supply"
+          icon={TrendingUp}
         />
 
       </div>
@@ -269,7 +245,8 @@ function IndustryDemand() {
             </h2>
 
             <p className="text-sm text-slate-500 mt-1">
-              Industry demand compared with current student readiness.
+              Industry demand compared with current student
+              skill supply.
             </p>
           </div>
 
@@ -290,258 +267,332 @@ function IndustryDemand() {
         </div>
 
 
-        <div className="mt-6 overflow-x-auto">
+        {skills.length === 0 ? (
 
-          <table className="w-full min-w-[800px]">
+          <div className="py-14 text-center">
 
-            <thead>
+            <CheckCircle2
+              size={40}
+              className="mx-auto text-green-500"
+            />
 
-              <tr className="border-b border-slate-100">
+            <h3 className="font-semibold text-slate-800 mt-4">
+              No industry demand data available
+            </h3>
 
-                <th className="text-left pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                  Skill
-                </th>
+            <p className="text-sm text-slate-500 mt-1">
+              Active industry opportunities with required
+              skills will appear here.
+            </p>
 
-                <th className="text-left pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                  Industry Demand
-                </th>
+          </div>
 
-                <th className="text-left pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                  Student Supply
-                </th>
+        ) : (
 
-                <th className="text-left pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                  Gap
-                </th>
+          <div className="mt-6 overflow-x-auto">
 
-                <th className="text-left pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                  Job Postings
-                </th>
+            <table className="w-full min-w-[850px]">
 
-                <th className="text-left pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                  Trend
-                </th>
+              <thead>
 
-              </tr>
+                <tr className="border-b border-slate-100">
 
-            </thead>
+                  <th className="text-left pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    Skill
+                  </th>
 
-            <tbody>
+                  <th className="text-left pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    Industry Demand
+                  </th>
 
-              {skillDemandData.map((item) => (
+                  <th className="text-left pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    Student Supply
+                  </th>
 
-                <tr
-                  key={item.skill}
-                  className="border-b border-slate-50 last:border-0"
-                >
+                  <th className="text-left pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    Gap
+                  </th>
 
-                  {/* Skill */}
-                  <td className="py-5">
+                  <th className="text-left pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    Opportunities
+                  </th>
 
-                    <div className="flex items-center gap-3">
-
-                      <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
-                        <Target
-                          size={17}
-                          className="text-blue-600"
-                        />
-                      </div>
-
-                      <span className="text-sm font-semibold text-slate-800">
-                        {item.skill}
-                      </span>
-
-                    </div>
-
-                  </td>
-
-
-                  {/* Demand */}
-                  <td className="py-5">
-
-                    <div className="w-32">
-
-                      <div className="flex justify-between text-xs mb-1">
-
-                        <span className="text-slate-400">
-                          Demand
-                        </span>
-
-                        <span className="font-semibold text-slate-700">
-                          {item.demand}%
-                        </span>
-
-                      </div>
-
-                      <div className="h-2 bg-slate-100 rounded-full">
-                        <div
-                          className="h-full bg-blue-600 rounded-full"
-                          style={{
-                            width: `${item.demand}%`,
-                          }}
-                        />
-                      </div>
-
-                    </div>
-
-                  </td>
-
-
-                  {/* Supply */}
-                  <td className="py-5">
-
-                    <div className="w-32">
-
-                      <div className="flex justify-between text-xs mb-1">
-
-                        <span className="text-slate-400">
-                          Supply
-                        </span>
-
-                        <span className="font-semibold text-slate-700">
-                          {item.supply}%
-                        </span>
-
-                      </div>
-
-                      <div className="h-2 bg-slate-100 rounded-full">
-                        <div
-                          className="h-full bg-slate-400 rounded-full"
-                          style={{
-                            width: `${item.supply}%`,
-                          }}
-                        />
-                      </div>
-
-                    </div>
-
-                  </td>
-
-
-                  {/* Gap */}
-                  <td className="py-5">
-
-                    <span
-                      className={`px-2.5 py-1 rounded-full text-xs font-semibold ${getGapStyle(
-                        item.gap
-                      )}`}
-                    >
-                      {item.gap}%
-                    </span>
-
-                  </td>
-
-
-                  {/* Postings */}
-                  <td className="py-5">
-
-                    <div className="flex items-center gap-2">
-
-                      <BriefcaseBusiness
-                        size={15}
-                        className="text-slate-400"
-                      />
-
-                      <span className="text-sm text-slate-700">
-                        {item.postings}
-                      </span>
-
-                    </div>
-
-                  </td>
-
-
-                  {/* Trend */}
-                  <td className="py-5">
-
-                    <span className="flex items-center gap-1 text-xs font-medium text-green-600">
-                      <ArrowUpRight size={13} />
-                      {item.trend}
-                    </span>
-
-                  </td>
+                  <th className="text-left pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    Avg. Score
+                  </th>
 
                 </tr>
 
-              ))}
+              </thead>
 
-            </tbody>
 
-          </table>
+              <tbody>
 
-        </div>
+                {skills.map((item) => (
+
+                  <tr
+                    key={item.id}
+                    className="border-b border-slate-50 last:border-0"
+                  >
+
+                    {/* Skill */}
+                    <td className="py-5">
+
+                      <div className="flex items-center gap-3">
+
+                        <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+                          <Target
+                            size={17}
+                            className="text-blue-600"
+                          />
+                        </div>
+
+                        <div>
+
+                          <span className="text-sm font-semibold text-slate-800">
+                            {item.name}
+                          </span>
+
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            {item.category}
+                          </p>
+
+                        </div>
+
+                      </div>
+
+                    </td>
+
+
+                    {/* Demand */}
+                    <td className="py-5">
+
+                      <div className="w-32">
+
+                        <div className="flex justify-between text-xs mb-1">
+
+                          <span className="text-slate-400">
+                            Demand
+                          </span>
+
+                          <span className="font-semibold text-slate-700">
+                            {item.demand}%
+                          </span>
+
+                        </div>
+
+                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+
+                          <div
+                            className="h-full bg-blue-600 rounded-full"
+                            style={{
+                              width: `${item.demand}%`,
+                            }}
+                          />
+
+                        </div>
+
+                      </div>
+
+                    </td>
+
+
+                    {/* Supply */}
+                    <td className="py-5">
+
+                      <div className="w-32">
+
+                        <div className="flex justify-between text-xs mb-1">
+
+                          <span className="text-slate-400">
+                            Supply
+                          </span>
+
+                          <span className="font-semibold text-slate-700">
+                            {item.supply}%
+                          </span>
+
+                        </div>
+
+                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+
+                          <div
+                            className="h-full bg-slate-400 rounded-full"
+                            style={{
+                              width: `${item.supply}%`,
+                            }}
+                          />
+
+                        </div>
+
+                      </div>
+
+                    </td>
+
+
+                    {/* Gap */}
+                    <td className="py-5">
+
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-xs font-semibold ${getGapStyle(
+                          item.gap
+                        )}`}
+                      >
+                        {item.gap}%
+                      </span>
+
+                    </td>
+
+
+                    {/* Opportunities */}
+                    <td className="py-5">
+
+                      <div className="flex items-center gap-2">
+
+                        <BriefcaseBusiness
+                          size={15}
+                          className="text-slate-400"
+                        />
+
+                        <span className="text-sm text-slate-700">
+                          {item.opportunity_count}
+                        </span>
+
+                      </div>
+
+                    </td>
+
+
+                    {/* Average score */}
+                    <td className="py-5">
+
+                      <span className="text-sm font-semibold text-slate-700">
+                        {item.average_score}%
+                      </span>
+
+                    </td>
+
+                  </tr>
+
+                ))}
+
+              </tbody>
+
+            </table>
+
+          </div>
+
+        )}
 
       </section>
 
 
-      {/* Sector + Demand Coverage */}
+      {/* Demand Gap Overview */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
 
-        {/* Sector Demand */}
+        {/* Skill Shortages */}
         <section className="bg-white border border-slate-200 rounded-2xl p-6">
 
           <div className="flex items-start justify-between">
 
             <div>
+
               <h2 className="text-lg font-semibold text-slate-900">
-                Industry Sector Demand
+                Skill Shortages
               </h2>
 
               <p className="text-sm text-slate-500 mt-1">
-                Demand intensity across partner industries.
+                Skills where industry demand exceeds
+                available student supply.
               </p>
+
             </div>
 
-            <Building2
+            <AlertTriangle
               size={20}
-              className="text-slate-400"
+              className="text-orange-500"
             />
 
           </div>
 
 
-          <div className="mt-6 space-y-5">
+          {prioritySkills.length === 0 ? (
 
-            {sectorData.map((item) => (
+            <div className="py-10 text-center">
 
-              <div key={item.sector}>
+              <CheckCircle2
+                size={34}
+                className="mx-auto text-green-500"
+              />
 
-                <div className="flex justify-between mb-2">
+              <p className="text-sm text-slate-500 mt-3">
+                No significant shortages detected.
+              </p>
 
-                  <span className="text-sm font-medium text-slate-700">
-                    {item.sector}
-                  </span>
+            </div>
 
-                  <div className="flex items-center gap-3">
+          ) : (
 
-                    <span className="text-xs text-slate-400">
-                      {item.partners} partners
-                    </span>
+            <div className="mt-6 space-y-5">
 
-                    <span className="text-sm font-semibold text-slate-800">
-                      {item.demand}%
-                    </span>
+              {prioritySkills
+                .slice(0, 5)
+                .map((item) => {
 
-                  </div>
+                  const priority =
+                    getPriority(item.gap);
 
-                </div>
+                  return (
+                    <div key={item.id}>
 
-                <div className="h-2.5 bg-slate-100 rounded-full">
+                      <div className="flex justify-between mb-2">
 
-                  <div
-                    className="h-full bg-blue-600 rounded-full"
-                    style={{
-                      width: `${item.demand}%`,
-                    }}
-                  />
+                        <div className="flex items-center gap-2">
 
-                </div>
+                          <span className="text-sm font-medium text-slate-700">
+                            {item.name}
+                          </span>
 
-              </div>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${getPriorityStyle(
+                              priority
+                            )}`}
+                          >
+                            {priority}
+                          </span>
 
-            ))}
+                        </div>
 
-          </div>
+                        <span className="text-sm font-semibold text-slate-800">
+                          {item.gap}% gap
+                        </span>
+
+                      </div>
+
+
+                      <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+
+                        <div
+                          className={`h-full rounded-full ${getBarColor(
+                            item.gap
+                          )}`}
+                          style={{
+                            width: `${Math.min(
+                              item.gap,
+                              100
+                            )}%`,
+                          }}
+                        />
+
+                      </div>
+
+                    </div>
+                  );
+                })}
+
+            </div>
+
+          )}
 
         </section>
 
@@ -551,22 +602,22 @@ function IndustryDemand() {
 
           <div className="flex items-start gap-3">
 
-            <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
-              <AlertTriangle
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+              <TrendingUp
                 size={20}
-                className="text-orange-500"
+                className="text-blue-600"
               />
             </div>
 
             <div>
 
               <h2 className="text-lg font-semibold text-slate-900">
-                Demand Coverage Insight
+                Demand Insight
               </h2>
 
               <p className="text-sm text-slate-500 mt-1">
-                Areas where industry requirements are not being
-                sufficiently met.
+                Current industry demand signals from active
+                opportunities.
               </p>
 
             </div>
@@ -576,64 +627,67 @@ function IndustryDemand() {
 
           <div className="mt-6 space-y-4">
 
+            <div className="p-4 bg-blue-50 rounded-xl">
+
+              <div className="flex justify-between gap-4">
+
+                <span className="text-sm font-semibold text-blue-700">
+                  Highest Demand
+                </span>
+
+                <span className="text-sm font-bold text-blue-600">
+                  {highestDemandSkill}
+                </span>
+
+              </div>
+
+              <p className="text-xs text-blue-600/80 mt-2">
+                This skill currently has the strongest
+                normalized demand across active opportunities.
+              </p>
+
+            </div>
+
+
             <div className="p-4 bg-red-50 rounded-xl">
 
-              <div className="flex justify-between">
+              <div className="flex justify-between gap-4">
 
                 <span className="text-sm font-semibold text-red-700">
-                  Cloud Computing
+                  Largest Shortage
                 </span>
 
                 <span className="text-sm font-bold text-red-600">
-                  38% gap
+                  {largestGap}%
                 </span>
 
               </div>
 
               <p className="text-xs text-red-600/80 mt-2">
-                High industry demand with low student readiness.
+                {largestGapSkill} has the largest difference
+                between industry demand and student supply.
               </p>
 
             </div>
 
 
-            <div className="p-4 bg-orange-50 rounded-xl">
+            <div className="p-4 bg-slate-50 rounded-xl">
 
               <div className="flex justify-between">
 
-                <span className="text-sm font-semibold text-orange-700">
-                  Power BI
+                <span className="text-sm font-semibold text-slate-700">
+                  Active Opportunities
                 </span>
 
-                <span className="text-sm font-bold text-orange-600">
-                  35% gap
+                <span className="text-sm font-bold text-slate-800">
+                  {activeOpportunities}
                 </span>
 
               </div>
 
-              <p className="text-xs text-orange-600/80 mt-2">
-                Growing analytics demand requires additional training.
-              </p>
-
-            </div>
-
-
-            <div className="p-4 bg-yellow-50 rounded-xl">
-
-              <div className="flex justify-between">
-
-                <span className="text-sm font-semibold text-yellow-700">
-                  Machine Learning
-                </span>
-
-                <span className="text-sm font-bold text-yellow-600">
-                  30% gap
-                </span>
-
-              </div>
-
-              <p className="text-xs text-yellow-700/80 mt-2">
-                Demand is increasing faster than student readiness.
+              <p className="text-xs text-slate-500 mt-2">
+                Industry demand is calculated from the skills
+                required by these active opportunities.
               </p>
 
             </div>
@@ -645,103 +699,114 @@ function IndustryDemand() {
       </div>
 
 
-      {/* Recommendations */}
+      {/* Recommended Development Areas */}
       <section>
 
         <div>
+
           <p className="text-sm text-blue-600 font-medium">
             INDUSTRY-ACADEMIA RESPONSE
           </p>
 
           <h2 className="text-xl font-semibold text-slate-900 mt-1">
-            Recommended Actions
+            Recommended Development Areas
           </h2>
 
           <p className="text-sm text-slate-500 mt-1">
-            Use industry demand signals to guide institutional
-            skill development.
+            Use current demand-supply gaps to prioritize
+            institutional skill development.
           </p>
+
         </div>
 
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mt-5">
 
-          {recommendations.map((item) => (
+          {prioritySkills
+            .slice(0, 3)
+            .map((item) => {
 
-            <div
-              key={item.skill}
-              className="bg-white border border-slate-200 rounded-2xl p-5"
-            >
+              const priority =
+                getPriority(item.gap);
 
-              <div className="flex items-center justify-between">
-
-                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                  <GraduationCap
-                    size={19}
-                    className="text-blue-600"
-                  />
-                </div>
-
-                <span
-                  className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                    item.priority === "Critical"
-                      ? "bg-red-50 text-red-600"
-                      : "bg-orange-50 text-orange-600"
-                  }`}
+              return (
+                <div
+                  key={item.id}
+                  className="bg-white border border-slate-200 rounded-2xl p-5"
                 >
-                  {item.priority}
-                </span>
 
-              </div>
+                  <div className="flex items-center justify-between">
+
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+
+                      <GraduationCap
+                        size={19}
+                        className="text-blue-600"
+                      />
+
+                    </div>
+
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium ${getPriorityStyle(
+                        priority
+                      )}`}
+                    >
+                      {priority}
+                    </span>
+
+                  </div>
 
 
-              <h3 className="font-semibold text-slate-900 mt-5">
-                {item.skill}
-              </h3>
+                  <h3 className="font-semibold text-slate-900 mt-5">
+                    {item.name}
+                  </h3>
 
 
-              <div className="grid grid-cols-2 gap-3 mt-4">
+                  <div className="grid grid-cols-2 gap-3 mt-4">
 
-                <div className="bg-slate-50 rounded-lg p-3">
+                    <div className="bg-slate-50 rounded-lg p-3">
 
-                  <p className="text-xs text-slate-400">
-                    Industry Demand
+                      <p className="text-xs text-slate-400">
+                        Industry Demand
+                      </p>
+
+                      <p className="text-lg font-bold text-slate-800 mt-1">
+                        {item.demand}%
+                      </p>
+
+                    </div>
+
+
+                    <div className="bg-slate-50 rounded-lg p-3">
+
+                      <p className="text-xs text-slate-400">
+                        Student Supply
+                      </p>
+
+                      <p className="text-lg font-bold text-slate-800 mt-1">
+                        {item.supply}%
+                      </p>
+
+                    </div>
+
+                  </div>
+
+
+                  <p className="text-sm text-slate-500 mt-4 leading-relaxed">
+                    Focus institutional training and practical
+                    projects on {item.name} to reduce the current
+                    {` ${item.gap}%`} demand-supply gap.
                   </p>
 
-                  <p className="text-lg font-bold text-slate-800 mt-1">
-                    {item.demand}%
-                  </p>
+
+                  <div className="flex items-center gap-1 mt-5 text-sm font-medium text-blue-600">
+                    Development Priority
+                    <ArrowUpRight size={15} />
+                  </div>
 
                 </div>
-
-                <div className="bg-slate-50 rounded-lg p-3">
-
-                  <p className="text-xs text-slate-400">
-                    Student Readiness
-                  </p>
-
-                  <p className="text-lg font-bold text-slate-800 mt-1">
-                    {item.readiness}%
-                  </p>
-
-                </div>
-
-              </div>
-
-
-              <p className="text-sm text-slate-500 mt-4 leading-relaxed">
-                {item.message}
-              </p>
-
-
-              <button className="flex items-center gap-1 mt-5 text-sm font-medium text-blue-600 hover:text-blue-700">
-                Create Initiative
-                <ArrowUpRight size={15} />
-              </button>
-
-            </div>
-
-          ))}
+              );
+            })}
 
         </div>
 
@@ -749,36 +814,40 @@ function IndustryDemand() {
 
 
       {/* Final Insight */}
-      <section className="bg-slate-900 rounded-2xl p-6 text-white">
+      {skills.length > 0 && (
+        <section className="bg-slate-900 rounded-2xl p-6 text-white">
 
-        <div className="flex items-start gap-4">
+          <div className="flex items-start gap-4">
 
-          <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
-            <CheckCircle2 size={21} />
+            <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+              <CheckCircle2 size={21} />
+            </div>
+
+            <div>
+
+              <p className="text-xs text-slate-400 font-medium tracking-wide">
+                INDUSTRY-ACADEMIA INSIGHT
+              </p>
+
+              <h2 className="text-xl font-semibold mt-1">
+                Align institutional training with real
+                industry demand.
+              </h2>
+
+              <p className="text-sm text-slate-300 mt-2 max-w-4xl leading-relaxed">
+                {largestGapSkill} currently shows the largest
+                demand-supply gap at {largestGap}%. Industry
+                opportunities should therefore be used as
+                continuous signals for curriculum planning,
+                training programs and practical projects.
+              </p>
+
+            </div>
+
           </div>
 
-          <div>
-
-            <p className="text-xs text-slate-400 font-medium tracking-wide">
-              INDUSTRY-ACADEMIA INSIGHT
-            </p>
-
-            <h2 className="text-xl font-semibold mt-1">
-              Align institutional training with real industry demand.
-            </h2>
-
-            <p className="text-sm text-slate-300 mt-2 max-w-4xl leading-relaxed">
-              Cloud Computing, Machine Learning and Power BI show
-              significant demand-readiness gaps. These areas provide
-              the strongest opportunities for industry partnerships,
-              targeted training and practical student projects.
-            </p>
-
-          </div>
-
-        </div>
-
-      </section>
+        </section>
+      )}
 
     </div>
   );

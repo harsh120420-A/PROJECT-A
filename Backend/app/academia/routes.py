@@ -135,11 +135,18 @@ def get_students(
     db: Session = Depends(get_db),
 ):
 
+    # --------------------------------------------------------
     # Verify academician
+    # --------------------------------------------------------
+
     get_current_academician(
         current_user,
         db,
     )
+
+    # --------------------------------------------------------
+    # Get all students
+    # --------------------------------------------------------
 
     students = (
         db.query(
@@ -159,18 +166,119 @@ def get_students(
         .all()
     )
 
-    return [
-        {
-            "id": student.id,
-            "user_id": user.id,
-            "name": user.name,
-            "email": user.email,
-            "career_goal": student.career_goal,
-            "readiness": student.readiness,
-        }
+    result = []
 
-        for student, user in students
-    ]
+    for student, user in students:
+
+        # ----------------------------------------------------
+        # Student skills
+        # ----------------------------------------------------
+
+        student_skills = (
+            db.query(
+                Skill,
+                StudentSkill,
+            )
+            .join(
+                StudentSkill,
+                StudentSkill.skill_id == Skill.id,
+            )
+            .filter(
+                StudentSkill.student_id ==
+                student.id
+            )
+            .all()
+        )
+
+        skills = [
+            {
+                "id": skill.id,
+                "name": skill.name,
+                "category": skill.category,
+                "score": student_skill.score or 0,
+            }
+            for skill, student_skill
+            in student_skills
+        ]
+
+        # ----------------------------------------------------
+        # Skill gaps
+        #
+        # Target score = 70
+        # ----------------------------------------------------
+
+        gaps = [
+            skill["name"]
+            for skill in skills
+            if skill["score"] < 70
+        ]
+
+        # ----------------------------------------------------
+        # Internship / application count
+        # ----------------------------------------------------
+
+        internship_count = (
+            db.query(Application)
+            .join(
+                Opportunity,
+                Application.opportunity_id ==
+                Opportunity.id,
+            )
+            .filter(
+                Application.student_id ==
+                student.id
+            )
+            .count()
+        )
+
+        # ----------------------------------------------------
+        # Student status
+        # ----------------------------------------------------
+
+        readiness = (
+            student.readiness or 0
+        )
+
+        if readiness >= 75:
+            status = "On Track"
+        elif readiness >= 60:
+            status = "Needs Attention"
+        else:
+            status = "At Risk"
+
+        # ----------------------------------------------------
+        # Return student
+        # ----------------------------------------------------
+
+        result.append({
+            "id": student.id,
+
+            "user_id": user.id,
+
+            "name": user.name,
+
+            "email": user.email,
+
+            "career_goal":
+                student.career_goal,
+
+            "readiness":
+                readiness,
+
+            "skills":
+                skills,
+
+            "gaps":
+                gaps,
+
+            "internships":
+                internship_count,
+
+            "status":
+                status,
+        })
+
+    return result
 
 
 # ============================================================
@@ -277,6 +385,310 @@ def get_skill_analytics(
     db: Session = Depends(get_db),
 ):
 
+    # --------------------------------------------------------
+    # Verify academician
+    # --------------------------------------------------------
+
+    get_current_academician(
+        current_user,
+        db,
+    )
+
+    # --------------------------------------------------------
+    # Get all student skill records
+    # --------------------------------------------------------
+
+    skill_data = (
+        db.query(
+            Skill,
+            StudentSkill,
+        )
+        .join(
+            StudentSkill,
+            StudentSkill.skill_id == Skill.id,
+        )
+        .all()
+    )
+
+    # --------------------------------------------------------
+    # Group scores by skill
+    # --------------------------------------------------------
+
+    skill_scores = {}
+
+    for skill, student_skill in skill_data:
+
+        if skill.id not in skill_scores:
+
+            skill_scores[skill.id] = {
+                "id": skill.id,
+                "name": skill.name,
+                "category": skill.category,
+                "scores": [],
+            }
+
+        skill_scores[
+            skill.id
+        ]["scores"].append(
+            student_skill.score or 0
+        )
+
+    # --------------------------------------------------------
+    # Skill analytics
+    # --------------------------------------------------------
+
+    analytics = []
+
+    for data in skill_scores.values():
+
+        scores = data["scores"]
+
+        average_score = (
+            round(
+                sum(scores) /
+                len(scores)
+            )
+            if scores
+            else 0
+        )
+
+        analytics.append({
+            "id": data["id"],
+            "name": data["name"],
+            "category": data["category"],
+            "average_score": average_score,
+            "student_count": len(scores),
+        })
+
+    # Highest average first
+    analytics.sort(
+        key=lambda item:
+        item["average_score"],
+        reverse=True,
+    )
+
+    # --------------------------------------------------------
+    # Overall average
+    # --------------------------------------------------------
+
+    all_scores = [
+        student_skill.score or 0
+        for _, student_skill
+        in skill_data
+    ]
+
+    average_skill_score = (
+        round(
+            sum(all_scores) /
+            len(all_scores)
+        )
+        if all_scores
+        else 0
+    )
+
+    # --------------------------------------------------------
+    # Technical readiness
+    # --------------------------------------------------------
+
+    technical_scores = [
+        student_skill.score or 0
+        for skill, student_skill
+        in skill_data
+        if skill.category == "Technical"
+    ]
+
+    technical_readiness = (
+        round(
+            sum(technical_scores) /
+            len(technical_scores)
+        )
+        if technical_scores
+        else 0
+    )
+
+    # --------------------------------------------------------
+    # Soft skill readiness
+    # --------------------------------------------------------
+
+    soft_skill_scores = [
+        student_skill.score or 0
+        for skill, student_skill
+        in skill_data
+        if skill.category == "Soft Skill"
+    ]
+
+    soft_skill_readiness = (
+        round(
+            sum(soft_skill_scores) /
+            len(soft_skill_scores)
+        )
+        if soft_skill_scores
+        else 0
+    )
+
+    # --------------------------------------------------------
+    # Students assessed
+    # --------------------------------------------------------
+
+    assessed_students = {
+        student_skill.student_id
+        for _, student_skill
+        in skill_data
+    }
+
+    # --------------------------------------------------------
+    # Student proficiency distribution
+    #
+    # Calculate each student's average score.
+    # --------------------------------------------------------
+
+    student_scores = {}
+
+    for _, student_skill in skill_data:
+
+        student_id = (
+            student_skill.student_id
+        )
+
+        if student_id not in student_scores:
+
+            student_scores[
+                student_id
+            ] = []
+
+        student_scores[
+            student_id
+        ].append(
+            student_skill.score or 0
+        )
+
+    proficiency_counts = {
+        "Advanced": 0,
+        "Intermediate": 0,
+        "Basic": 0,
+        "Beginner": 0,
+    }
+
+    for scores in student_scores.values():
+
+        average = (
+            sum(scores) /
+            len(scores)
+            if scores
+            else 0
+        )
+
+        if average >= 75:
+
+            proficiency_counts[
+                "Advanced"
+            ] += 1
+
+        elif average >= 50:
+
+            proficiency_counts[
+                "Intermediate"
+            ] += 1
+
+        elif average >= 30:
+
+            proficiency_counts[
+                "Basic"
+            ] += 1
+
+        else:
+
+            proficiency_counts[
+                "Beginner"
+            ] += 1
+
+    total_assessed = len(
+        assessed_students
+    )
+
+    proficiency_distribution = []
+
+    descriptions = {
+        "Advanced":
+            "Highly proficient",
+
+        "Intermediate":
+            "Industry-ready in core areas",
+
+        "Basic":
+            "Needs further development",
+
+        "Beginner":
+            "Requires foundational training",
+    }
+
+    for label in [
+        "Advanced",
+        "Intermediate",
+        "Basic",
+        "Beginner",
+    ]:
+
+        count = proficiency_counts[
+            label
+        ]
+
+        percentage = (
+            round(
+                (
+                    count /
+                    total_assessed
+                ) * 100
+            )
+            if total_assessed
+            else 0
+        )
+
+        proficiency_distribution.append({
+            "label": label,
+            "count": count,
+            "percentage": percentage,
+            "description":
+                descriptions[label],
+        })
+
+    # --------------------------------------------------------
+    # Response
+    # --------------------------------------------------------
+
+    return {
+        "summary": {
+            "average_skill_score":
+                average_skill_score,
+
+            "technical_readiness":
+                technical_readiness,
+
+            "soft_skill_readiness":
+                soft_skill_readiness,
+
+            "students_assessed":
+                total_assessed,
+        },
+
+        "skills":
+            analytics,
+
+        "proficiency_distribution":
+            proficiency_distribution,
+    }
+
+# ============================================================
+# SKILL GAPS
+# ============================================================
+
+@router.get("/skill-gaps")
+def get_skill_gaps(
+    current_user: User = Depends(
+        require_role("ACADEMIA")
+    ),
+    db: Session = Depends(get_db),
+):
     # Verify academician
     get_current_academician(
         current_user,
@@ -284,7 +696,7 @@ def get_skill_analytics(
     )
 
     # --------------------------------------------------------
-    # Get all skills and student scores
+    # Get all student skill scores
     # --------------------------------------------------------
 
     skill_data = (
@@ -320,92 +732,7 @@ def get_skill_analytics(
         )
 
     # --------------------------------------------------------
-    # Calculate averages
-    # --------------------------------------------------------
-
-    analytics = []
-
-    for data in skill_scores.values():
-
-        scores = data["scores"]
-
-        average_score = round(
-            sum(scores) / len(scores)
-        ) if scores else 0
-
-        analytics.append({
-            "id": data["id"],
-            "name": data["name"],
-            "category": data["category"],
-            "average_score": average_score,
-            "student_count": len(scores),
-        })
-
-    # Highest average first
-    analytics.sort(
-        key=lambda item: item["average_score"],
-        reverse=True,
-    )
-
-    return analytics
-
-
-# ============================================================
-# SKILL GAPS
-# ============================================================
-
-@router.get("/skill-gaps")
-def get_skill_gaps(
-    current_user: User = Depends(
-        require_role("ACADEMIA")
-    ),
-    db: Session = Depends(get_db),
-):
-
-    # Verify academician
-    get_current_academician(
-        current_user,
-        db,
-    )
-
-    # --------------------------------------------------------
-    # Get all student skill scores
-    # --------------------------------------------------------
-
-    skill_data = (
-        db.query(
-            Skill,
-            StudentSkill,
-        )
-        .join(
-            StudentSkill,
-            StudentSkill.skill_id == Skill.id,
-        )
-        .all()
-    )
-
-    # --------------------------------------------------------
-    # Group scores
-    # --------------------------------------------------------
-
-    skill_scores = {}
-
-    for skill, student_skill in skill_data:
-
-        if skill.id not in skill_scores:
-            skill_scores[skill.id] = {
-                "id": skill.id,
-                "name": skill.name,
-                "category": skill.category,
-                "scores": [],
-            }
-
-        skill_scores[skill.id]["scores"].append(
-            student_skill.score or 0
-        )
-
-    # --------------------------------------------------------
-    # Calculate gaps
+    # Calculate skill gaps
     #
     # Target readiness = 70
     # --------------------------------------------------------
@@ -425,7 +752,37 @@ def get_skill_gaps(
             70 - average_score
         )
 
+        # Only include skills with an actual gap
         if gap > 0:
+
+            if gap >= 30:
+                priority = "Critical"
+            elif gap >= 20:
+                priority = "High"
+            else:
+                priority = "Moderate"
+
+            if data["name"] == "Cloud Computing":
+                recommendation = (
+                    "Launch cloud certification and industry-led workshops."
+                )
+            elif data["name"] == "Power BI":
+                recommendation = (
+                    "Introduce Power BI training with real business projects."
+                )
+            elif data["name"] == "Machine Learning":
+                recommendation = (
+                    "Conduct ML bootcamps and industry project programs."
+                )
+            elif data["name"] == "SQL":
+                recommendation = (
+                    "Organize advanced SQL and database optimization workshops."
+                )
+            else:
+                recommendation = (
+                    f"Strengthen {data['name']} through applied training "
+                    "and practical projects."
+                )
 
             gaps.append({
                 "id": data["id"],
@@ -435,15 +792,62 @@ def get_skill_gaps(
                 "target_score": 70,
                 "gap": gap,
                 "student_count": len(scores),
+                "priority": priority,
+                "recommendation": recommendation,
             })
 
+    # --------------------------------------------------------
     # Largest gap first
+    # --------------------------------------------------------
+
     gaps.sort(
         key=lambda item: item["gap"],
         reverse=True,
     )
 
-    return gaps
+    # --------------------------------------------------------
+    # Summary statistics
+    # --------------------------------------------------------
+
+    critical_skills = sum(
+        1 for item in gaps
+        if item["priority"] == "Critical"
+    )
+
+    high_priority_skills = sum(
+        1 for item in gaps
+        if item["priority"] == "High"
+    )
+
+    students_affected = len({
+        student_skill.student_id
+        for _, student_skill in skill_data
+        if any(
+            gap["id"] == student_skill.skill_id
+            for gap in gaps
+        )
+    })
+
+    largest_gap = gaps[0] if gaps else None
+
+    return {
+        "summary": {
+            "critical_skills": critical_skills,
+            "high_priority_skills": high_priority_skills,
+            "students_affected": students_affected,
+            "largest_gap": (
+                largest_gap["gap"]
+                if largest_gap
+                else 0
+            ),
+            "largest_gap_skill": (
+                largest_gap["name"]
+                if largest_gap
+                else None
+            ),
+        },
+        "gaps": gaps,
+    }
 
 
 # ============================================================
@@ -457,7 +861,6 @@ def get_industry_demand(
     ),
     db: Session = Depends(get_db),
 ):
-
     # --------------------------------------------------------
     # Verify academician
     # --------------------------------------------------------
@@ -480,7 +883,7 @@ def get_industry_demand(
     )
 
     # --------------------------------------------------------
-    # Count how many opportunities require each skill
+    # Count skill demand
     # --------------------------------------------------------
 
     demand_counts = {}
@@ -503,7 +906,6 @@ def get_industry_demand(
         for skill in required_skills:
 
             if skill.id not in demand_counts:
-
                 demand_counts[skill.id] = {
                     "id": skill.id,
                     "name": skill.name,
@@ -514,7 +916,7 @@ def get_industry_demand(
             demand_counts[skill.id]["count"] += 1
 
     # --------------------------------------------------------
-    # Find maximum demand
+    # Maximum demand
     # --------------------------------------------------------
 
     max_demand = max(
@@ -526,7 +928,7 @@ def get_industry_demand(
     )
 
     # --------------------------------------------------------
-    # Calculate student supply
+    # Total students
     # --------------------------------------------------------
 
     student_count = (
@@ -535,30 +937,27 @@ def get_industry_demand(
     )
 
     # --------------------------------------------------------
-    # Calculate demand vs supply
+    # Build skill demand/supply analysis
     # --------------------------------------------------------
 
     result = []
 
     for data in demand_counts.values():
 
-        # Demand percentage
+        # Demand percentage relative to
+        # the most demanded skill
         if max_demand > 0:
-
             demand_percentage = round(
                 (
                     data["count"]
                     / max_demand
-                )
-                * 100
+                ) * 100
             )
-
         else:
-
             demand_percentage = 0
 
         # ----------------------------------------------------
-        # Student skill supply
+        # Student skill records
         # ----------------------------------------------------
 
         skill_records = (
@@ -570,30 +969,24 @@ def get_industry_demand(
             .all()
         )
 
+        students_with_skill = sum(
+            1
+            for record in skill_records
+            if (record.score or 0) > 0
+        )
+
         if student_count > 0:
-
-            students_with_skill = len(
-                [
-                    record
-                    for record in skill_records
-                    if (record.score or 0) > 0
-                ]
-            )
-
             supply_percentage = round(
                 (
                     students_with_skill
                     / student_count
-                )
-                * 100
+                ) * 100
             )
-
         else:
-
             supply_percentage = 0
 
         # ----------------------------------------------------
-        # Average student proficiency
+        # Average proficiency
         # ----------------------------------------------------
 
         scores = [
@@ -606,7 +999,7 @@ def get_industry_demand(
         ) if scores else 0
 
         # ----------------------------------------------------
-        # Gap
+        # Demand vs supply gap
         # ----------------------------------------------------
 
         gap = max(
@@ -627,7 +1020,7 @@ def get_industry_demand(
         })
 
     # --------------------------------------------------------
-    # Largest gaps first
+    # Sort largest gap first
     # --------------------------------------------------------
 
     result.sort(
@@ -635,8 +1028,59 @@ def get_industry_demand(
         reverse=True,
     )
 
-    return result
+    # --------------------------------------------------------
+    # Summary
+    # --------------------------------------------------------
 
+    highest_demand = (
+        max(
+            result,
+            key=lambda item: item["demand"],
+            default=None,
+        )
+    )
+
+    largest_gap = (
+        result[0]
+        if result
+        else None
+    )
+
+    total_skill_requirements = sum(
+        item["opportunity_count"]
+        for item in result
+    )
+
+    skills_with_shortage = sum(
+        1
+        for item in result
+        if item["gap"] > 0
+    )
+
+    return {
+        "summary": {
+            "active_opportunities": len(opportunities),
+            "skills_in_demand": len(result),
+            "total_skill_requirements": total_skill_requirements,
+            "skills_with_shortage": skills_with_shortage,
+            "highest_demand_skill": (
+                highest_demand["name"]
+                if highest_demand
+                else None
+            ),
+            "largest_gap_skill": (
+                largest_gap["name"]
+                if largest_gap
+                else None
+            ),
+            "largest_gap": (
+                largest_gap["gap"]
+                if largest_gap
+                else 0
+            ),
+        },
+        "skills": result,
+    }
 # ============================================================
 # ACADEMIA OPPORTUNITIES
 # ============================================================

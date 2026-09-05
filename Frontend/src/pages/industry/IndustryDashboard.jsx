@@ -11,11 +11,7 @@ import {
 import { defaultCompany } from "../../data/company";
 import { useNavigate } from "react-router-dom";
 
-import {
-  getCompany,
-  getIndustryOpportunities,
-  saveCompany
-} from "../../utils/storage";
+import { apiGet } from "../../services/api";
 
 
 function IndustryDashboard() {
@@ -27,49 +23,54 @@ function IndustryDashboard() {
   const [opportunities, setOpportunities] =
     useState([]);
 
+  const [stats, setStats] =
+  useState({
+    active_opportunities: 0,
+    total_opportunities: 0,
+    total_applications: 0,
+    total_candidates: 0,
+    shortlisted_candidates: 0,
+    selected_candidates: 0,
+    average_match: 0
+  });
+
 
   useEffect(() => {
 
-    const storedCompany = getCompany();
+  async function loadIndustryData() {
 
-    if (storedCompany) {
-      setCompany(storedCompany);
-    } else {
-      saveCompany(defaultCompany);
+    try {
+
+      const [
+        opportunitiesData,
+        statsData
+      ] = await Promise.all([
+        apiGet("/industry/opportunities"),
+        apiGet("/industry/dashboard/stats")
+      ]);
+
+      setOpportunities(
+        opportunitiesData
+      );
+
+      setStats(
+        statsData
+      );
+
+    } catch (error) {
+
+      console.error(
+        "Failed to load industry dashboard:",
+        error
+      );
+
     }
 
+  }
 
-    const storedOpportunities =
-      getIndustryOpportunities();
+  loadIndustryData();
 
-    setOpportunities(storedOpportunities);
-
-  }, []);
-
-
-  const activeOpportunities =
-    opportunities.filter(
-      (opportunity) =>
-        opportunity.status !== "Closed"
-    );
-
-
-  const totalApplications =
-    opportunities.reduce(
-      (total, opportunity) =>
-        total +
-        (opportunity.applications || 0),
-      0
-    );
-
-
-  const totalCandidates =
-    opportunities.reduce(
-      (total, opportunity) =>
-        total +
-        (opportunity.candidates || 0),
-      0
-    );
+}, []);
 
 
   return (
@@ -164,7 +165,7 @@ function IndustryDashboard() {
                 </p>
 
                 <p className="text-3xl font-bold mt-2">
-                  {activeOpportunities.length}
+                  {stats.active_opportunities}
                 </p>
 
               </div>
@@ -189,7 +190,7 @@ function IndustryDashboard() {
                 </p>
 
                 <p className="text-3xl font-bold mt-2">
-                  {totalApplications}
+                 {stats.total_applications}
                 </p>
 
               </div>
@@ -214,7 +215,7 @@ function IndustryDashboard() {
                 </p>
 
                 <p className="text-3xl font-bold mt-2">
-                  {totalCandidates}
+                  {stats.total_candidates}
                 </p>
 
               </div>
@@ -239,7 +240,7 @@ function IndustryDashboard() {
                 </p>
 
                 <p className="text-3xl font-bold mt-2">
-                  82%
+                 {stats.average_match}%
                 </p>
 
               </div>
