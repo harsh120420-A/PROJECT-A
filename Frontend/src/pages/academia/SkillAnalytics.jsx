@@ -8,85 +8,41 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
-const skillData = [
-  { skill: "Python", score: 78 },
-  { skill: "SQL", score: 65 },
-  { skill: "Java", score: 58 },
-  { skill: "Statistics", score: 55 },
-  { skill: "Machine Learning", score: 45 },
-  { skill: "Cloud Computing", score: 32 },
-  { skill: "Power BI", score: 30 },
-];
+import {
+  useEffect,
+  useState,
+} from "react";
 
-const departmentData = [
-  { department: "Computer Science", score: 78 },
-  { department: "Information Technology", score: 72 },
-  { department: "Electronics", score: 64 },
-  { department: "Mechanical", score: 57 },
-];
+import { apiGet } from "../../services/api";
 
-const proficiencyData = [
-  {
-    label: "Advanced",
-    count: 225,
-    percentage: 18,
-    description: "Highly proficient",
-  },
-  {
-    label: "Intermediate",
-    count: 574,
-    percentage: 46,
-    description: "Industry-ready in core areas",
-  },
-  {
-    label: "Basic",
-    count: 349,
-    percentage: 28,
-    description: "Needs further development",
-  },
-  {
-    label: "Beginner",
-    count: 100,
-    percentage: 8,
-    description: "Requires foundational training",
-  },
-];
-
-const strongestSkills = [
-  { skill: "Python", score: 78 },
-  { skill: "SQL", score: 65 },
-  { skill: "Java", score: 58 },
-];
-
-const prioritySkills = [
-  {
-    skill: "Power BI",
-    score: 30,
-    reason: "Low institutional readiness",
-  },
-  {
-    skill: "Cloud Computing",
-    score: 32,
-    reason: "High industry relevance",
-  },
-  {
-    skill: "Machine Learning",
-    score: 45,
-    reason: "Growing industry demand",
-  },
-];
 
 function getScoreColor(score) {
-  if (score >= 70) return "text-green-600";
-  if (score >= 50) return "text-yellow-600";
+
+  if (score >= 70) {
+    return "text-green-600";
+  }
+
+  if (score >= 50) {
+    return "text-yellow-600";
+  }
+
   return "text-red-600";
 }
 
+
 function getBarColor(score) {
-  if (score >= 70) return "bg-green-500";
-  if (score >= 50) return "bg-yellow-500";
+
+  if (score >= 70) {
+    return "bg-green-500";
+  }
+
+  if (score >= 50) {
+    return "bg-yellow-500";
+  }
+
   return "bg-red-500";
 }
+
 
 function StatCard({
   title,
@@ -94,12 +50,15 @@ function StatCard({
   subtitle,
   icon: Icon,
 }) {
+
   return (
+
     <div className="bg-white border border-slate-200 rounded-2xl p-5">
 
       <div className="flex items-start justify-between">
 
         <div>
+
           <p className="text-sm text-slate-500">
             {title}
           </p>
@@ -111,27 +70,261 @@ function StatCard({
           <p className="text-xs text-slate-400 mt-2">
             {subtitle}
           </p>
+
         </div>
 
         <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center">
+
           <Icon
             size={21}
             className="text-blue-600"
           />
+
         </div>
 
       </div>
 
     </div>
+
   );
 }
 
+
 function SkillAnalytics() {
+
+  const [analytics, setAnalytics] =
+    useState(null);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState("");
+
+
+  /*
+   * Load analytics
+   */
+
+  useEffect(() => {
+
+    async function loadAnalytics() {
+
+      try {
+
+        setLoading(true);
+        setError("");
+
+        const data =
+          await apiGet(
+            "/academia/skill-analytics"
+          );
+
+        setAnalytics(data);
+
+      } catch (err) {
+
+        console.error(
+          "Failed to load skill analytics:",
+          err
+        );
+
+        setError(
+          err.message ||
+          "Failed to load skill analytics."
+        );
+
+      } finally {
+
+        setLoading(false);
+
+      }
+
+    }
+
+    loadAnalytics();
+
+  }, []);
+
+
+  /*
+   * Loading
+   */
+
+  if (loading) {
+
+    return (
+
+      <div className="min-h-screen flex items-center justify-center">
+
+        <div className="text-center">
+
+          <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin mx-auto" />
+
+          <p className="text-sm text-slate-500 mt-4">
+            Loading skill analytics...
+          </p>
+
+        </div>
+
+      </div>
+
+    );
+
+  }
+
+
+  /*
+   * Error
+   */
+
+  if (error) {
+
+    return (
+
+      <div className="min-h-screen flex items-center justify-center">
+
+        <div className="bg-white border border-red-200 rounded-2xl p-8 text-center max-w-md">
+
+          <h2 className="text-xl font-semibold text-red-600">
+            Unable to load analytics
+          </h2>
+
+          <p className="text-sm text-slate-500 mt-2">
+            {error}
+          </p>
+
+          <button
+            onClick={() =>
+              window.location.reload()
+            }
+            className="mt-5 px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium"
+          >
+            Try Again
+          </button>
+
+        </div>
+
+      </div>
+
+    );
+
+  }
+
+
+  const summary =
+    analytics?.summary || {};
+
+  const skillData =
+    analytics?.skills || [];
+
+  const proficiencyData =
+    analytics?.proficiency_distribution ||
+    [];
+
+
+  /*
+   * Strongest skills
+   */
+
+  const strongestSkills =
+    [...skillData]
+      .sort(
+        (a, b) =>
+          b.average_score -
+          a.average_score
+      )
+      .slice(0, 3)
+      .map((item) => ({
+        skill: item.name,
+        score: item.average_score,
+      }));
+
+
+  /*
+   * Priority skills
+   */
+
+  const prioritySkills =
+    [...skillData]
+      .sort(
+        (a, b) =>
+          a.average_score -
+          b.average_score
+      )
+      .slice(0, 3)
+      .map((item) => ({
+
+        skill: item.name,
+
+        score:
+          item.average_score,
+
+        reason:
+          item.average_score < 40
+            ? "Low institutional readiness"
+            : item.average_score < 60
+            ? "Needs further development"
+            : "Requires continued improvement",
+
+      }));
+
+
+  /*
+   * Category readiness
+   */
+
+  const technicalSkills =
+    skillData.filter(
+      (skill) =>
+        skill.category ===
+        "Technical"
+    );
+
+  const softSkills =
+    skillData.filter(
+      (skill) =>
+        skill.category ===
+        "Soft Skill"
+    );
+
+
+  const technicalAverage =
+    technicalSkills.length > 0
+      ? Math.round(
+          technicalSkills.reduce(
+            (total, skill) =>
+              total +
+              skill.average_score,
+            0
+          ) /
+            technicalSkills.length
+        )
+      : 0;
+
+
+  const softAverage =
+    softSkills.length > 0
+      ? Math.round(
+          softSkills.reduce(
+            (total, skill) =>
+              total +
+              skill.average_score,
+            0
+          ) /
+            softSkills.length
+        )
+      : 0;
+
+
   return (
+
     <div className="space-y-7">
 
       {/* Header */}
+
       <div>
+
         <p className="text-sm text-blue-600 font-medium">
           STUDENT INTELLIGENCE
         </p>
@@ -144,59 +337,71 @@ function SkillAnalytics() {
           Understand institution-wide skill readiness and
           identify areas requiring development.
         </p>
+
       </div>
 
 
       {/* KPI Cards */}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
 
         <StatCard
           title="Average Skill Score"
-          value="68%"
+          value={`${summary.average_skill_score || 0}%`}
           subtitle="Across all assessed skills"
           icon={BarChart3}
         />
 
+
         <StatCard
           title="Technical Readiness"
-          value="71%"
+          value={`${summary.technical_readiness || 0}%`}
           subtitle="Technical skill average"
           icon={Brain}
         />
 
+
         <StatCard
           title="Soft Skill Readiness"
-          value="74%"
-          subtitle="Communication & leadership"
+          value={`${summary.soft_skill_readiness || 0}%`}
+          subtitle="Communication & soft skills"
           icon={Award}
         />
 
+
         <StatCard
           title="Students Assessed"
-          value="1,248"
-          subtitle="Current academic year"
+          value={
+            summary.students_assessed || 0
+          }
+          subtitle="Students with skill records"
           icon={Users}
         />
 
       </div>
 
 
-      {/* Skill Distribution + Department */}
+      {/* Skill Distribution + Category Readiness */}
+
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
 
+
         {/* Skill Distribution */}
+
         <section className="bg-white border border-slate-200 rounded-2xl p-6">
 
           <div className="flex items-start justify-between">
 
             <div>
+
               <h2 className="text-lg font-semibold text-slate-900">
                 Skill Distribution
               </h2>
 
               <p className="text-sm text-slate-500 mt-1">
-                Average proficiency across key technical skills
+                Average proficiency across tracked skills
               </p>
+
             </div>
 
             <TrendingUp
@@ -209,61 +414,77 @@ function SkillAnalytics() {
 
           <div className="mt-7 space-y-5">
 
-            {skillData.map((item) => (
+            {skillData.length === 0 ? (
 
-              <div key={item.skill}>
+              <p className="text-sm text-slate-400">
+                No skill data available.
+              </p>
 
-                <div className="flex items-center justify-between mb-2">
+            ) : (
 
-                  <span className="text-sm font-medium text-slate-700">
-                    {item.skill}
-                  </span>
+              skillData.map(
+                (item) => (
 
-                  <span
-                    className={`text-sm font-bold ${getScoreColor(
-                      item.score
-                    )}`}
-                  >
-                    {item.score}%
-                  </span>
+                  <div key={item.id}>
 
-                </div>
+                    <div className="flex items-center justify-between mb-2">
 
-                <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+                      <span className="text-sm font-medium text-slate-700">
+                        {item.name}
+                      </span>
 
-                  <div
-                    className={`h-full rounded-full ${getBarColor(
-                      item.score
-                    )}`}
-                    style={{
-                      width: `${item.score}%`,
-                    }}
-                  />
+                      <span
+                        className={`text-sm font-bold ${getScoreColor(
+                          item.average_score
+                        )}`}
+                      >
+                        {item.average_score}%
+                      </span>
 
-                </div>
+                    </div>
 
-              </div>
 
-            ))}
+                    <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+
+                      <div
+                        className={`h-full rounded-full ${getBarColor(
+                          item.average_score
+                        )}`}
+                        style={{
+                          width: `${item.average_score}%`,
+                        }}
+                      />
+
+                    </div>
+
+                  </div>
+
+                )
+              )
+
+            )}
 
           </div>
 
         </section>
 
 
-        {/* Department Readiness */}
+        {/* Category Readiness */}
+
         <section className="bg-white border border-slate-200 rounded-2xl p-6">
 
           <div className="flex items-start justify-between">
 
             <div>
+
               <h2 className="text-lg font-semibold text-slate-900">
-                Department Readiness
+                Skill Category Readiness
               </h2>
 
               <p className="text-sm text-slate-500 mt-1">
-                Compare average readiness between departments
+                Compare technical and soft skill readiness
               </p>
+
             </div>
 
             <Users
@@ -274,73 +495,89 @@ function SkillAnalytics() {
           </div>
 
 
-          <div className="mt-7 space-y-7">
+          <div className="mt-8 space-y-8">
 
-            {departmentData.map((item, index) => (
+            <div>
 
-              <div key={item.department}>
+              <div className="flex justify-between mb-2">
 
-                <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-slate-700">
+                  Technical Skills
+                </span>
 
-                  <div className="flex items-center gap-3">
-
-                    <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-xs font-semibold text-slate-600">
-                      {index + 1}
-                    </div>
-
-                    <span className="text-sm font-medium text-slate-700">
-                      {item.department}
-                    </span>
-
-                  </div>
-
-                  <span
-                    className={`text-sm font-bold ${getScoreColor(
-                      item.score
-                    )}`}
-                  >
-                    {item.score}%
-                  </span>
-
-                </div>
-
-                <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
-
-                  <div
-                    className={`h-full rounded-full ${getBarColor(
-                      item.score
-                    )}`}
-                    style={{
-                      width: `${item.score}%`,
-                    }}
-                  />
-
-                </div>
+                <span
+                  className={`text-sm font-bold ${getScoreColor(
+                    technicalAverage
+                  )}`}
+                >
+                  {technicalAverage}%
+                </span>
 
               </div>
 
-            ))}
+
+              <div className="h-3 bg-slate-100 rounded-full">
+
+                <div
+                  className={`h-full rounded-full ${getBarColor(
+                    technicalAverage
+                  )}`}
+                  style={{
+                    width: `${technicalAverage}%`,
+                  }}
+                />
+
+              </div>
+
+            </div>
+
+
+            <div>
+
+              <div className="flex justify-between mb-2">
+
+                <span className="text-sm font-medium text-slate-700">
+                  Soft Skills
+                </span>
+
+                <span
+                  className={`text-sm font-bold ${getScoreColor(
+                    softAverage
+                  )}`}
+                >
+                  {softAverage}%
+                </span>
+
+              </div>
+
+
+              <div className="h-3 bg-slate-100 rounded-full">
+
+                <div
+                  className={`h-full rounded-full ${getBarColor(
+                    softAverage
+                  )}`}
+                  style={{
+                    width: `${softAverage}%`,
+                  }}
+                />
+
+              </div>
+
+            </div>
 
           </div>
 
 
-          <div className="mt-7 pt-5 border-t border-slate-100">
+          <div className="mt-8 pt-5 border-t border-slate-100">
 
             <p className="text-xs text-slate-400">
               Institutional average
             </p>
 
-            <div className="flex items-center gap-2 mt-1">
-
-              <span className="text-2xl font-bold text-slate-900">
-                68%
-              </span>
-
-              <span className="text-xs text-green-600 font-medium">
-                +5.2% this semester
-              </span>
-
-            </div>
+            <p className="text-2xl font-bold text-slate-900 mt-1">
+              {summary.average_skill_score || 0}%
+            </p>
 
           </div>
 
@@ -350,62 +587,69 @@ function SkillAnalytics() {
 
 
       {/* Proficiency Distribution */}
+
       <section className="bg-white border border-slate-200 rounded-2xl p-6">
 
         <div>
+
           <h2 className="text-lg font-semibold text-slate-900">
             Student Proficiency Distribution
           </h2>
 
           <p className="text-sm text-slate-500 mt-1">
-            Distribution of students according to their overall skill level
+            Distribution based on each student's average skill score
           </p>
+
         </div>
 
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-6">
 
-          {proficiencyData.map((item) => (
+          {proficiencyData.map(
+            (item) => (
 
-            <div
-              key={item.label}
-              className="border border-slate-100 rounded-xl p-5"
-            >
+              <div
+                key={item.label}
+                className="border border-slate-100 rounded-xl p-5"
+              >
 
-              <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between">
 
-                <span className="font-medium text-slate-700">
-                  {item.label}
-                </span>
+                  <span className="font-medium text-slate-700">
+                    {item.label}
+                  </span>
 
-                <span className="text-lg font-bold text-slate-900">
-                  {item.percentage}%
-                </span>
+                  <span className="text-lg font-bold text-slate-900">
+                    {item.percentage}%
+                  </span>
+
+                </div>
+
+
+                <div className="mt-4 h-2 bg-slate-100 rounded-full overflow-hidden">
+
+                  <div
+                    className="h-full bg-blue-600 rounded-full"
+                    style={{
+                      width: `${item.percentage}%`,
+                    }}
+                  />
+
+                </div>
+
+
+                <p className="text-2xl font-bold text-slate-900 mt-4">
+                  {item.count}
+                </p>
+
+                <p className="text-xs text-slate-400 mt-1">
+                  {item.description}
+                </p>
 
               </div>
 
-              <div className="mt-4 h-2 bg-slate-100 rounded-full overflow-hidden">
-
-                <div
-                  className="h-full bg-blue-600 rounded-full"
-                  style={{
-                    width: `${item.percentage}%`,
-                  }}
-                />
-
-              </div>
-
-              <p className="text-2xl font-bold text-slate-900 mt-4">
-                {item.count}
-              </p>
-
-              <p className="text-xs text-slate-400 mt-1">
-                {item.description}
-              </p>
-
-            </div>
-
-          ))}
+            )
+          )}
 
         </div>
 
@@ -413,21 +657,28 @@ function SkillAnalytics() {
 
 
       {/* Strengths + Priority Areas */}
+
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
 
+
         {/* Strengths */}
+
         <section className="bg-white border border-slate-200 rounded-2xl p-6">
 
           <div className="flex items-center gap-3">
 
             <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
+
               <CheckCircle2
                 size={20}
                 className="text-green-600"
               />
+
             </div>
 
+
             <div>
+
               <h2 className="text-lg font-semibold text-slate-900">
                 Institutional Strengths
               </h2>
@@ -435,6 +686,7 @@ function SkillAnalytics() {
               <p className="text-sm text-slate-500 mt-1">
                 Skills where students currently perform strongest
               </p>
+
             </div>
 
           </div>
@@ -442,45 +694,51 @@ function SkillAnalytics() {
 
           <div className="mt-5 space-y-4">
 
-            {strongestSkills.map((item, index) => (
+            {strongestSkills.map(
+              (item, index) => (
 
-              <div
-                key={item.skill}
-                className="flex items-center gap-4"
-              >
+                <div
+                  key={item.skill}
+                  className="flex items-center gap-4"
+                >
 
-                <div className="w-8 h-8 rounded-lg bg-green-50 text-green-700 flex items-center justify-center text-xs font-bold">
-                  #{index + 1}
-                </div>
+                  <div className="w-8 h-8 rounded-lg bg-green-50 text-green-700 flex items-center justify-center text-xs font-bold">
+                    #{index + 1}
+                  </div>
 
-                <div className="flex-1">
 
-                  <div className="flex justify-between">
+                  <div className="flex-1">
 
-                    <span className="text-sm font-medium text-slate-700">
-                      {item.skill}
-                    </span>
+                    <div className="flex justify-between">
 
-                    <span className="text-sm font-semibold text-green-600">
-                      {item.score}%
-                    </span>
+                      <span className="text-sm font-medium text-slate-700">
+                        {item.skill}
+                      </span>
+
+                      <span className="text-sm font-semibold text-green-600">
+                        {item.score}%
+                      </span>
+
+                    </div>
+
+
+                    <div className="h-2 bg-slate-100 rounded-full mt-2">
+
+                      <div
+                        className="h-full bg-green-500 rounded-full"
+                        style={{
+                          width: `${item.score}%`,
+                        }}
+                      />
+
+                    </div>
 
                   </div>
 
-                  <div className="h-2 bg-slate-100 rounded-full mt-2">
-                    <div
-                      className="h-full bg-green-500 rounded-full"
-                      style={{
-                        width: `${item.score}%`,
-                      }}
-                    />
-                  </div>
-
                 </div>
 
-              </div>
-
-            ))}
+              )
+            )}
 
           </div>
 
@@ -488,18 +746,23 @@ function SkillAnalytics() {
 
 
         {/* Priority Areas */}
+
         <section className="bg-white border border-slate-200 rounded-2xl p-6">
 
           <div className="flex items-center gap-3">
 
             <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
+
               <AlertTriangle
                 size={20}
                 className="text-red-500"
               />
+
             </div>
 
+
             <div>
+
               <h2 className="text-lg font-semibold text-slate-900">
                 Priority Development Areas
               </h2>
@@ -507,6 +770,7 @@ function SkillAnalytics() {
               <p className="text-sm text-slate-500 mt-1">
                 Skills requiring institutional attention
               </p>
+
             </div>
 
           </div>
@@ -514,32 +778,35 @@ function SkillAnalytics() {
 
           <div className="mt-5 space-y-4">
 
-            {prioritySkills.map((item) => (
+            {prioritySkills.map(
+              (item) => (
 
-              <div
-                key={item.skill}
-                className="border border-slate-100 rounded-xl p-4"
-              >
+                <div
+                  key={item.skill}
+                  className="border border-slate-100 rounded-xl p-4"
+                >
 
-                <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between">
 
-                  <span className="text-sm font-semibold text-slate-800">
-                    {item.skill}
-                  </span>
+                    <span className="text-sm font-semibold text-slate-800">
+                      {item.skill}
+                    </span>
 
-                  <span className="text-sm font-bold text-red-600">
-                    {item.score}%
-                  </span>
+                    <span className="text-sm font-bold text-red-600">
+                      {item.score}%
+                    </span>
+
+                  </div>
+
+
+                  <p className="text-xs text-slate-500 mt-2">
+                    {item.reason}
+                  </p>
 
                 </div>
 
-                <p className="text-xs text-slate-500 mt-2">
-                  {item.reason}
-                </p>
-
-              </div>
-
-            ))}
+              )
+            )}
 
           </div>
 
@@ -549,13 +816,17 @@ function SkillAnalytics() {
 
 
       {/* Institutional Insight */}
+
       <section className="bg-slate-900 rounded-2xl p-6 text-white">
 
         <div className="flex items-start gap-4">
 
           <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+
             <BarChart3 size={20} />
+
           </div>
+
 
           <div>
 
@@ -568,11 +839,18 @@ function SkillAnalytics() {
             </h2>
 
             <p className="text-sm text-slate-300 mt-2 max-w-3xl leading-relaxed">
-              Cloud Computing, Power BI and Machine Learning currently
-              show the lowest institutional readiness among the tracked
-              technical skills. These areas can be prioritized for
-              industry-led workshops, certifications and targeted
-              learning programs.
+
+              {prioritySkills.length > 0
+                ? `${prioritySkills
+                    .map(
+                      (skill) =>
+                        skill.skill
+                    )
+                    .join(
+                      ", "
+                    )} currently show the lowest average readiness among tracked skills. These areas can be prioritized for targeted learning programs and industry-led training.`
+                : "No priority development areas have been identified from the current student skill data."}
+
             </p>
 
           </div>
@@ -582,6 +860,7 @@ function SkillAnalytics() {
       </section>
 
     </div>
+
   );
 }
 

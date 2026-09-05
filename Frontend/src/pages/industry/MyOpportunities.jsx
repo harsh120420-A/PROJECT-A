@@ -12,9 +12,9 @@ import {
 } from "lucide-react";
 
 import {
-  getIndustryOpportunities,
-  saveIndustryOpportunities
-} from "../../utils/storage";
+  apiGet,
+  apiPatch
+} from "../../services/api";
 
 function MyOpportunities() {
 
@@ -27,46 +27,69 @@ function MyOpportunities() {
 
   useEffect(() => {
 
-    const storedOpportunities =
-      getIndustryOpportunities();
+  async function loadOpportunities() {
 
-    setOpportunities(storedOpportunities);
+    try {
 
-  }, []);
+      const data =
+        await apiGet("/industry/opportunities");
 
+      setOpportunities(data);
 
-  function updateOpportunities(updated) {
+    } catch (error) {
 
-    setOpportunities(updated);
+      console.error(
+        "Failed to load opportunities:",
+        error
+      );
 
-    saveIndustryOpportunities(updated);
+    }
 
   }
 
+  loadOpportunities();
 
-  function toggleStatus(id) {
+}, []);
 
-    const updated = opportunities.map(
-      (opportunity) => {
 
-        if (opportunity.id !== id) {
-          return opportunity;
+
+
+  async function toggleStatus(opportunity) {
+
+  const newStatus =
+    opportunity.status === "Closed"
+      ? "Active"
+      : "Closed";
+
+  try {
+
+    const response =
+      await apiPatch(
+        `/industry/opportunities/${opportunity.id}/status`,
+        {
+          status: newStatus
         }
+      );
 
-        return {
-          ...opportunity,
-          status:
-            opportunity.status === "Closed"
-              ? "Active"
-              : "Closed"
-        };
-
-      }
+    setOpportunities((current) =>
+      current.map((item) =>
+        item.id === opportunity.id
+          ? {
+              ...item,
+              status:
+                response.opportunity.status
+            }
+          : item
+      )
     );
 
-    updateOpportunities(updated);
+  } catch (error) {
+
+    alert(error.message);
 
   }
+
+}
 
 
   const filteredOpportunities =
@@ -279,8 +302,8 @@ function MyOpportunities() {
 
                       <button
                         onClick={() =>
-                          toggleStatus(opportunity.id)
-                        }
+  toggleStatus(opportunity)
+}
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
                           opportunity.status === "Closed"
                             ? "bg-green-50 text-green-600 hover:bg-green-100"

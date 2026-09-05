@@ -1,9 +1,6 @@
-import {
-  getApplicationsForOpportunity,
-  updateApplicationStatus
-} from "../../utils/application";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+
 import {
   ArrowLeft,
   Mail,
@@ -17,324 +14,349 @@ import {
   Star
 } from "lucide-react";
 
-import { candidates } from "../../data/candidates";
-
-import {
-  getIndustryOpportunities
-} from "../../utils/storage";
-
-import {
-  calculateMatch,
-  getMatchedSkills,
-  getMissingSkills
-} from "../../utils/matching";
+import { apiGet, apiPatch } from "../../services/api";
 
 
 function CandidateProfile() {
-
   const navigate = useNavigate();
 
-  const { candidateId, opportunityId } =
-    useParams();
+  const { candidateId, opportunityId } = useParams();
 
-  const [candidate, setCandidate] =
-    useState(null);
+  const [candidate, setCandidate] = useState(null);
+  const [opportunity, setOpportunity] = useState(null);
 
-  const [opportunity, setOpportunity] =
-    useState(null);
+  const [match, setMatch] = useState(0);
+  const [matchedSkills, setMatchedSkills] = useState([]);
+  const [missingSkills, setMissingSkills] = useState([]);
 
-  const [match, setMatch] =
-    useState(0);
+  const [shortlisted, setShortlisted] = useState(false);
+  const [status, setStatus] = useState("Applied");
 
-  const [matchedSkills, setMatchedSkills] =
-    useState([]);
-
-  const [missingSkills, setMissingSkills] =
-    useState([]);
-
-  const [shortlisted, setShortlisted] =
-    useState(false);
-
-  const [status, setStatus] =
-    useState("Shortlisted");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
 
+  /*
+   * Load candidate profile + opportunity
+   */
   useEffect(() => {
+    async function loadProfile() {
+      try {
+        setLoading(true);
+        setError("");
 
-    const selectedCandidate =
-      candidates.find(
-        (item) =>
-          item.id.toString() === candidateId
-      );
+        /*
+         * Candidate profile comes directly from backend.
+         */
+        const profile = await apiGet(
+          `/industry/candidates/${candidateId}`
+        );
 
-    const opportunities =
-      getIndustryOpportunities();
+        /*
+         * Opportunity comes from backend.
+         */
+        const opportunities =
+          await apiGet("/industry/opportunities");
 
-    const selectedOpportunity =
-      opportunities.find(
-        (item) =>
-          item.id.toString() === opportunityId
-      );
+        const selectedOpportunity =
+          opportunities.find(
+            (item) =>
+              item.id.toString() ===
+              opportunityId
+          );
 
+        if (!selectedOpportunity) {
+          throw new Error(
+            "Opportunity not found."
+          );
+        }
 
-    if (!selectedCandidate ||
-        !selectedOpportunity) {
+        /*
+         * Convert backend response into
+         * the structure required by the UI.
+         */
+        const candidateData = {
+          id: profile.student.id,
+          name: profile.student.name,
+          email: profile.student.email,
+          careerGoal:
+            profile.student.career_goal ||
+            "Not specified",
+          readiness:
+            profile.student.readiness ||
+            "Not specified",
+          skills: profile.skills || []
+        };
 
-      return;
+        setCandidate(candidateData);
+        setOpportunity(selectedOpportunity);
 
+        /*
+         * Application status
+         */
+        const applicationStatus =
+          profile.application?.status ||
+          "Applied";
+
+        setStatus(applicationStatus);
+
+        setShortlisted(
+          applicationStatus !== "Applied"
+        );
+
+        /*
+         * Required skills are not returned by
+         * GET /industry/opportunities.
+         *
+         * Therefore we use the same required-skill
+         * information used by Candidates.jsx:
+         *
+         * Python = 1
+         * SQL = 2
+         * Machine Learning = 3
+         * Power BI = 4
+         * Communication = 5
+         *
+         * The candidates endpoint currently
+         * returns required_skills with score 50.
+         */
+        const candidateList =
+          await apiGet(
+            `/industry/opportunities/${opportunityId}/candidates`
+          );
+
+        const requiredSkills =
+          candidateList.required_skills || [];
+
+        /*
+         * Calculate match.
+         *
+         * Current backend required score = 50.
+         */
+        const calculatedScores =
+          requiredSkills.map(
+            (requiredSkill) => {
+              const candidateSkill =
+                candidateData.skills.find(
+                  (skill) =>
+                    skill.id ===
+                    requiredSkill.id
+                );
+
+              const candidateScore =
+                candidateSkill?.score || 0;
+
+              const requiredScore =
+                requiredSkill.requiredScore || 50;
+
+              let percentage = 0;
+
+              if (
+                candidateScore >=
+                requiredScore
+              ) {
+                percentage = 100;
+              } else {
+                percentage =
+                  (candidateScore /
+                    requiredScore) *
+                  100;
+              }
+
+              return {
+                name: requiredSkill.name,
+                candidateScore,
+                requiredScore,
+                percentage
+              };
+            }
+          );
+
+        const overallMatch =
+          calculatedScores.length > 0
+            ? Math.round(
+                calculatedScores.reduce(
+                  (total, skill) =>
+                    total +
+                    skill.percentage,
+                  0
+                ) /
+                  calculatedScores.length
+              )
+            : 0;
+
+        setMatch(overallMatch);
+
+        /*
+         * Matching skills
+         */
+        setMatchedSkills(
+          calculatedScores
+            .filter(
+              (skill) =>
+                skill.candidateScore >=
+                skill.requiredScore
+            )
+            .map(
+              (skill) => skill.name
+            )
+        );
+
+        /*
+         * Skill gaps
+         */
+        setMissingSkills(
+          calculatedScores
+            .filter(
+              (skill) =>
+                skill.candidateScore <
+                skill.requiredScore
+            )
+            .map(
+              (skill) => skill.name
+            )
+        );
+
+      } catch (err) {
+        console.error(
+          "Failed to load candidate profile:",
+          err
+        );
+
+        setError(
+          err.message ||
+            "Failed to load candidate profile."
+        );
+      } finally {
+        setLoading(false);
+      }
     }
 
-
-    setCandidate(selectedCandidate);
-
-    setOpportunity(selectedOpportunity);
-
-
-    const candidateMatch =
-      calculateMatch(
-        selectedCandidate.skills,
-        selectedOpportunity.skills
-      );
-
-
-    setMatch(candidateMatch);
-
-
-    setMatchedSkills(
-      getMatchedSkills(
-        selectedCandidate.skills,
-        selectedOpportunity.skills
-      )
-    );
-
-
-    setMissingSkills(
-      getMissingSkills(
-        selectedCandidate.skills,
-        selectedOpportunity.skills
-      )
-    );
-
-
-    const shortlistKey =
-      `shortlisted_${opportunityId}_${candidateId}`;
-
-    const savedShortlist =
-      localStorage.getItem(shortlistKey);
-
-    setShortlisted(
-      savedShortlist === "true"
-    );
-
-    const applications =
-  getApplicationsForOpportunity(
-    Number(opportunityId)
-  );
-
-
-const application =
-  applications.find(
-    (item) =>
-      item.studentId ===
-      selectedCandidate.id
-  );
-
-
-if (application) {
-
-  setStatus(
-    application.status
-  );
-
-  setShortlisted(
-    application.status !==
-      "Applied"
-  );
-
-} else {
-
-  setStatus("Applied");
-
-  setShortlisted(false);
-
-}
-
+    if (candidateId && opportunityId) {
+      loadProfile();
+    }
   }, [
     candidateId,
     opportunityId
   ]);
 
 
-  function toggleShortlist() {
-
-  const applications =
-    getApplicationsForOpportunity(
-      Number(opportunityId)
-    );
-
-
-  const existingApplication =
-    applications.find(
-      (application) =>
-        application.studentId ===
-        candidate.id
-    );
-
-
-  if (shortlisted) {
-
-    if (existingApplication) {
-
-      updateApplicationStatus(
-        existingApplication.id,
-        "Applied"
-      );
-
+  /*
+   * Update recruitment status
+   */
+  async function updateStatus(newStatus) {
+    if (!candidate) {
+      return;
     }
 
-    setShortlisted(false);
+    try {
+      setUpdatingStatus(true);
+      setError("");
 
-    setStatus("Applied");
+      /*
+       * We need the actual application ID.
+       *
+       * Since the profile itself was loaded above,
+       * retrieve it again here through the same
+       * endpoint.
+       */
+      const profile =
+        await apiGet(
+          `/industry/candidates/${candidateId}`
+        );
 
-    return;
+      const applicationId =
+        profile.application?.id;
 
-  }
+      if (!applicationId) {
+        throw new Error(
+          "Application ID not found."
+        );
+      }
 
-
-  if (existingApplication) {
-
-    updateApplicationStatus(
-      existingApplication.id,
-      "Shortlisted"
-    );
-
-  } else {
-
-    const newApplication = {
-
-      id: Date.now(),
-
-      opportunityId:
-        Number(opportunityId),
-
-      opportunityTitle:
-        opportunity.title,
-
-      company:
-        opportunity.company ||
-        "Industry Partner",
-
-      studentId:
-        candidate.id,
-
-      status:
-        "Shortlisted",
-
-      appliedDate:
-        new Date().toISOString(),
-
-      updatedDate:
-        new Date().toISOString(),
-
-      matchScore:
-        match
-
-    };
-
-
-    const existingApplications =
-      JSON.parse(
-        localStorage.getItem(
-          "applications"
-        ) || "[]"
+      await apiPatch(
+        `/industry/applications/${applicationId}/status`,
+        {
+          status: newStatus
+        }
       );
 
+      setStatus(newStatus);
 
-    localStorage.setItem(
-      "applications",
-      JSON.stringify([
-        ...existingApplications,
-        newApplication
-      ])
-    );
+      setShortlisted(
+        newStatus !== "Applied"
+      );
 
+    } catch (err) {
+      console.error(
+        "Failed to update application status:",
+        err
+      );
+
+      setError(
+        err.message ||
+          "Failed to update recruitment status."
+      );
+    } finally {
+      setUpdatingStatus(false);
+    }
   }
 
 
-  setShortlisted(true);
+  /*
+   * Shortlist / remove from shortlist
+   */
+  async function toggleShortlist() {
+    if (!candidate) {
+      return;
+    }
 
-  setStatus("Shortlisted");
-
-}
-
-  function updateStatus(newStatus) {
-
-  const key =
-    `status_${opportunityId}_${candidateId}`;
-
-
-  localStorage.setItem(
-    key,
-    newStatus
-  );
-
-
-  const applications =
-    getApplicationsForOpportunity(
-      Number(opportunityId)
-    );
-
-
-  const application =
-    applications.find(
-      (item) =>
-        item.studentId ===
-        candidate.id
-    );
-
-
-  if (application) {
-
-    updateApplicationStatus(
-      application.id,
-      newStatus
-    );
-
+    if (shortlisted) {
+      await updateStatus("Applied");
+    } else {
+      await updateStatus("Shortlisted");
+    }
   }
 
 
-  setStatus(newStatus);
-
-
-  if (newStatus === "Shortlisted") {
-
-    setShortlisted(true);
-
-  } else {
-
-    setShortlisted(
-      newStatus !== "Applied"
-    );
-
-  }
-
-}
-
-
-  if (!candidate || !opportunity) {
-
+  /*
+   * Loading state
+   */
+  if (loading) {
     return (
-
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-
         <div className="bg-white border rounded-2xl p-10 text-center">
+          <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin mx-auto" />
+
+          <p className="text-slate-500 mt-4">
+            Loading candidate profile...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+
+  /*
+   * Error / candidate not found
+   */
+  if (
+    error ||
+    !candidate ||
+    !opportunity
+  ) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="bg-white border rounded-2xl p-10 text-center max-w-md">
 
           <h1 className="text-2xl font-bold">
             Candidate Not Found
           </h1>
 
           <p className="text-slate-500 mt-2">
-            The candidate or opportunity could not be found.
+            {error ||
+              "The candidate or opportunity could not be found."}
           </p>
 
           <button
@@ -349,16 +371,12 @@ if (application) {
           </button>
 
         </div>
-
       </div>
-
     );
-
   }
 
 
   return (
-
     <div className="min-h-screen bg-slate-50">
 
       {/* Header */}
@@ -424,13 +442,12 @@ if (application) {
                 </h2>
 
                 <p className="text-slate-500 mt-1">
-                  {candidate.degree} •{" "}
-                  {candidate.branch}
+                  Student
                 </p>
 
                 <p className="text-sm text-slate-400 mt-1">
-                  Graduation Year:{" "}
-                  {candidate.graduationYear}
+                  Readiness:{" "}
+                  {candidate.readiness}
                 </p>
 
               </div>
@@ -440,10 +457,15 @@ if (application) {
 
             <button
               onClick={toggleShortlist}
+              disabled={updatingStatus}
               className={`flex items-center justify-center gap-2 px-5 py-3 rounded-lg font-medium ${
                 shortlisted
                   ? "bg-green-50 text-green-700 border border-green-200"
                   : "bg-blue-600 text-white hover:bg-blue-700"
+              } ${
+                updatingStatus
+                  ? "opacity-60 cursor-not-allowed"
+                  : ""
               }`}
             >
 
@@ -456,7 +478,9 @@ if (application) {
                 }
               />
 
-              {shortlisted
+              {updatingStatus
+                ? "Updating..."
+                : shortlisted
                 ? "Shortlisted"
                 : "Shortlist Candidate"}
 
@@ -503,7 +527,7 @@ if (application) {
                 </p>
 
                 <p className="text-sm font-medium">
-                  {candidate.degree}
+                  Student Profile
                 </p>
 
               </div>
@@ -536,6 +560,15 @@ if (application) {
         </div>
 
 
+        {/* Error notification */}
+
+        {error && (
+          <div className="mt-6 bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">
+            {error}
+          </div>
+        )}
+
+
         {/* Match Overview */}
 
         <div className="bg-white border rounded-2xl p-6 mt-6">
@@ -549,7 +582,8 @@ if (application) {
               </h2>
 
               <p className="text-sm text-slate-500 mt-1">
-                Skill compatibility with {opportunity.title}.
+                Skill compatibility with{" "}
+                {opportunity.title}.
               </p>
 
             </div>
@@ -620,14 +654,12 @@ if (application) {
 
                   matchedSkills.map(
                     (skill) => (
-
                       <span
                         key={skill}
                         className="px-3 py-2 bg-green-50 text-green-700 text-sm rounded-full"
                       >
                         ✓ {skill}
                       </span>
-
                     )
                   )
 
@@ -668,14 +700,12 @@ if (application) {
 
                   missingSkills.map(
                     (skill) => (
-
                       <span
                         key={skill}
                         className="px-3 py-2 bg-red-50 text-red-600 text-sm rounded-full"
                       >
                         ! {skill}
                       </span>
-
                     )
                   )
 
@@ -711,67 +741,68 @@ if (application) {
 
           <div className="mt-6 space-y-5">
 
-            {candidate.skills.map(
-              (skill) => {
+            {candidate.skills.length > 0 ? (
 
-                const isRequired =
-                  opportunity.skills.some(
-                    (requiredSkill) =>
-                      requiredSkill
-                        .toLowerCase()
-                        .trim() ===
+              candidate.skills.map(
+                (skill) => {
+
+                  const isRequired =
+                    !missingSkills.includes(
                       skill.name
-                        .toLowerCase()
-                        .trim()
-                  );
+                    ) &&
+                    matchedSkills.includes(
+                      skill.name
+                    );
 
+                  return (
+                    <div key={skill.id}>
 
-                return (
+                      <div className="flex justify-between">
 
-                  <div key={skill.name}>
+                        <div className="flex items-center gap-2">
 
-                    <div className="flex justify-between">
-
-                      <div className="flex items-center gap-2">
-
-                        <span className="text-sm font-medium">
-                          {skill.name}
-                        </span>
-
-                        {isRequired && (
-
-                          <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">
-                            Required
+                          <span className="text-sm font-medium">
+                            {skill.name}
                           </span>
 
-                        )}
+                          {isRequired && (
+                            <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">
+                              Required
+                            </span>
+                          )}
+
+                        </div>
+
+
+                        <span className="text-sm font-semibold">
+                          {skill.score}%
+                        </span>
 
                       </div>
 
 
-                      <span className="text-sm font-semibold">
-                        {skill.score}%
-                      </span>
+                      <div className="h-2 bg-slate-100 rounded-full mt-2">
+
+                        <div
+                          className="h-full bg-blue-600 rounded-full"
+                          style={{
+                            width: `${skill.score}%`
+                          }}
+                        />
+
+                      </div>
 
                     </div>
+                  );
+                }
+              )
 
+            ) : (
 
-                    <div className="h-2 bg-slate-100 rounded-full mt-2">
+              <p className="text-sm text-slate-400">
+                No skills available.
+              </p>
 
-                      <div
-                        className="h-full bg-blue-600 rounded-full"
-                        style={{
-                          width: `${skill.score}%`
-                        }}
-                      />
-
-                    </div>
-
-                  </div>
-
-                );
-
-              }
             )}
 
           </div>
@@ -883,60 +914,68 @@ if (application) {
 
         </div>
 
-                {/* Recruitment Status */}
 
-<div className="bg-white border rounded-2xl p-6 mt-6">
+        {/* Recruitment Status */}
 
-  <h2 className="text-xl font-semibold">
-    Recruitment Status
-  </h2>
+        <div className="bg-white border rounded-2xl p-6 mt-6">
 
-  <p className="text-sm text-slate-500 mt-1">
-    Track the candidate through your recruitment process.
-  </p>
+          <h2 className="text-xl font-semibold">
+            Recruitment Status
+          </h2>
 
-
-  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
-
-    {[
-      "Shortlisted",
-      "Interview",
-      "Selected",
-      "Rejected"
-    ].map((option) => (
-
-      <button
-        key={option}
-        onClick={() =>
-          updateStatus(option)
-        }
-        className={`px-4 py-3 rounded-xl text-sm font-medium border ${
-          status === option
-            ? "bg-blue-600 text-white border-blue-600"
-            : "bg-white text-slate-600 hover:bg-slate-50"
-        }`}
-      >
-        {option}
-      </button>
-
-    ))}
-
-  </div>
+          <p className="text-sm text-slate-500 mt-1">
+            Track the candidate through your recruitment process.
+          </p>
 
 
-  <div className="mt-5 p-4 bg-slate-50 rounded-xl">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
 
-    <p className="text-xs text-slate-400">
-      Current Status
-    </p>
+            {[
+              "Shortlisted",
+              "Interview",
+              "Selected",
+              "Rejected"
+            ].map((option) => (
 
-    <p className="font-semibold mt-1">
-      {status}
-    </p>
+              <button
+                key={option}
+                onClick={() =>
+                  updateStatus(option)
+                }
+                disabled={updatingStatus}
+                className={`px-4 py-3 rounded-xl text-sm font-medium border ${
+                  status === option
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-slate-600 hover:bg-slate-50"
+                } ${
+                  updatingStatus
+                    ? "opacity-60 cursor-not-allowed"
+                    : ""
+                }`}
+              >
+                {option}
+              </button>
 
-  </div>
+            ))}
 
-</div>
+          </div>
+
+
+          <div className="mt-5 p-4 bg-slate-50 rounded-xl">
+
+            <p className="text-xs text-slate-400">
+              Current Status
+            </p>
+
+            <p className="font-semibold mt-1">
+              {status}
+            </p>
+
+          </div>
+
+        </div>
+
+
         {/* Bottom Actions */}
 
         <div className="flex justify-end gap-3 mt-6">
@@ -955,13 +994,20 @@ if (application) {
 
           <button
             onClick={toggleShortlist}
+            disabled={updatingStatus}
             className={`px-6 py-3 rounded-lg font-medium ${
               shortlisted
                 ? "bg-green-600 text-white"
                 : "bg-blue-600 text-white hover:bg-blue-700"
+            } ${
+              updatingStatus
+                ? "opacity-60 cursor-not-allowed"
+                : ""
             }`}
           >
-            {shortlisted
+            {updatingStatus
+              ? "Updating..."
+              : shortlisted
               ? "Candidate Shortlisted"
               : "Shortlist Candidate"}
           </button>
@@ -971,7 +1017,6 @@ if (application) {
       </div>
 
     </div>
-
   );
 }
 

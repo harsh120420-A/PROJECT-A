@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+
 import {
   BriefcaseBusiness,
   MapPin,
@@ -8,14 +9,34 @@ import {
   X
 } from "lucide-react";
 
-import {
-  getIndustryOpportunities,
-  saveIndustryOpportunities
-} from "../../utils/storage";
+import { apiPost } from "../../services/api";
+
+
+// ============================================================
+// DATABASE SKILL IDs
+// ============================================================
+
+const SKILL_ID_MAP = {
+  Python: 1,
+  SQL: 2,
+  "Machine Learning": 3,
+  "Power BI": 4,
+  Communication: 5
+};
+
+
+// ============================================================
+// COMPONENT
+// ============================================================
 
 function PostOpportunity() {
 
   const navigate = useNavigate();
+
+
+  // ==========================================================
+  // FORM STATE
+  // ==========================================================
 
   const [form, setForm] = useState({
     title: "",
@@ -27,12 +48,26 @@ function PostOpportunity() {
     deadline: ""
   });
 
+
+  // ==========================================================
+  // SKILL STATE
+  // ==========================================================
+
   const [skillInput, setSkillInput] = useState("");
 
   const [skills, setSkills] = useState([]);
 
+
+  // ==========================================================
+  // MESSAGE STATE
+  // ==========================================================
+
   const [message, setMessage] = useState("");
 
+
+  // ==========================================================
+  // HANDLE FORM CHANGES
+  // ==========================================================
 
   function handleChange(e) {
 
@@ -46,48 +81,90 @@ function PostOpportunity() {
   }
 
 
+  // ==========================================================
+  // ADD SKILL
+  // ==========================================================
+
   function addSkill() {
 
-  const skill = skillInput.trim();
+    const skill = skillInput.trim();
 
-  if (!skill) {
-    return;
-  }
-
-  const alreadyExists = skills.some(
-    (existingSkill) =>
-      existingSkill.name.toLowerCase() ===
-      skill.toLowerCase()
-  );
-
-  if (alreadyExists) {
-    setSkillInput("");
-    return;
-  }
-
-  setSkills((previous) => [
-    ...previous,
-    {
-      name: skill,
-      requiredScore: 50
+    if (!skill) {
+      return;
     }
-  ]);
 
-  setSkillInput("");
 
-}
+    // Find matching database skill
+    const matchedSkill = Object.keys(SKILL_ID_MAP).find(
+      (name) =>
+        name.toLowerCase() ===
+        skill.toLowerCase()
+    );
 
+
+    // Invalid skill
+    if (!matchedSkill) {
+
+      setMessage(
+        "Please enter a valid skill: Python, SQL, Machine Learning, Power BI, or Communication."
+      );
+
+      return;
+    }
+
+
+    // Prevent duplicate skill
+    const alreadyExists = skills.some(
+      (existingSkill) =>
+        existingSkill.name.toLowerCase() ===
+        matchedSkill.toLowerCase()
+    );
+
+
+    if (alreadyExists) {
+
+      setSkillInput("");
+
+      return;
+    }
+
+
+    // Add skill
+    setSkills((previous) => [
+      ...previous,
+      {
+        name: matchedSkill,
+        requiredScore: 50
+      }
+    ]);
+
+
+    setSkillInput("");
+
+    setMessage("");
+
+  }
+
+
+  // ============================================================
+  // REMOVE SKILL
+  // ============================================================
 
   function removeSkill(skillToRemove) {
 
     setSkills((previous) =>
       previous.filter(
-        (skill) => skill !== skillToRemove
+        (skill) =>
+          skill.name !== skillToRemove
       )
     );
 
   }
 
+
+  // ============================================================
+  // HANDLE ENTER KEY FOR SKILL
+  // ============================================================
 
   function handleSkillKeyDown(e) {
 
@@ -102,9 +179,18 @@ function PostOpportunity() {
   }
 
 
-  function handleSubmit(e) {
+  // ============================================================
+  // SUBMIT OPPORTUNITY
+  // ============================================================
+
+  async function handleSubmit(e) {
 
     e.preventDefault();
+
+
+    // ----------------------------------------------------------
+    // Validate skills
+    // ----------------------------------------------------------
 
     if (skills.length === 0) {
 
@@ -116,76 +202,92 @@ function PostOpportunity() {
     }
 
 
-    const existingOpportunities =
-      getIndustryOpportunities();
+    // ----------------------------------------------------------
+    // Convert frontend skills to database skill IDs
+    // ----------------------------------------------------------
 
-
-    const newOpportunity = {
-
-      id: Date.now(),
-
-      title: form.title,
-
-      type: form.type,
-
-      description: form.description,
-
-      location: form.location,
-
-      mode: form.mode,
-
-      duration: form.duration,
-
-      deadline: form.deadline,
-
-      skillRequirements: skills,
-skills: skills.map(
-  (skill) => skill.name
-),
-
-      status: "Active",
-
-      applications: 0,
-
-      candidates: 0,
-
-      createdDate:
-        new Date().toLocaleDateString(
-          "en-US",
-          {
-            month: "short",
-            day: "numeric",
-            year: "numeric"
-          }
-        )
-    };
-
-
-    saveIndustryOpportunities([
-      ...existingOpportunities,
-      newOpportunity
-    ]);
-
-
-    setMessage(
-      "Opportunity published successfully!"
+    const skillIds = skills.map(
+      (skill) =>
+        SKILL_ID_MAP[skill.name]
     );
 
 
-    setTimeout(() => {
+    // ----------------------------------------------------------
+    // Send opportunity to backend
+    // ----------------------------------------------------------
 
-      navigate("/industry/dashboard");
+    try {
 
-    }, 800);
+      const response = await apiPost(
+        "/industry/opportunities",
+        {
+          title: form.title,
+          type: form.type,
+          description: form.description,
+          location: form.location,
+          mode: form.mode,
+          duration: form.duration,
+          deadline: form.deadline,
+
+          skill_ids: skillIds
+        }
+      );
+
+
+      console.log(
+        "Opportunity created:",
+        response
+      );
+
+
+      // --------------------------------------------------------
+      // Success message
+      // --------------------------------------------------------
+
+      setMessage(
+        "Opportunity published successfully!"
+      );
+
+
+      // --------------------------------------------------------
+      // Redirect to dashboard
+      // --------------------------------------------------------
+
+      setTimeout(() => {
+
+        navigate("/industry/dashboard");
+
+      }, 800);
+
+    } catch (error) {
+
+      console.error(
+        "Failed to create opportunity:",
+        error
+      );
+
+
+      setMessage(
+        error.message ||
+        "Failed to publish opportunity."
+      );
+
+    }
 
   }
 
+
+  // ============================================================
+  // UI
+  // ============================================================
 
   return (
 
     <div className="min-h-screen bg-slate-50">
 
-      {/* Header */}
+      {/* ======================================================
+          HEADER
+          ====================================================== */}
 
       <div className="bg-white border-b">
 
@@ -212,14 +314,18 @@ skills: skills.map(
 
         <form onSubmit={handleSubmit}>
 
-          {/* Basic Information */}
+          {/* ==================================================
+              OPPORTUNITY DETAILS
+              ================================================== */}
 
           <div className="bg-white border rounded-2xl p-6">
 
             <div className="flex items-center gap-3">
 
               <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+
                 <BriefcaseBusiness size={20} />
+
               </div>
 
               <div>
@@ -239,7 +345,9 @@ skills: skills.map(
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
 
-              {/* Title */}
+              {/* ==================================================
+                  TITLE
+                  ================================================== */}
 
               <div className="md:col-span-2">
 
@@ -260,7 +368,9 @@ skills: skills.map(
               </div>
 
 
-              {/* Type */}
+              {/* ==================================================
+                  TYPE
+                  ================================================== */}
 
               <div>
 
@@ -296,7 +406,9 @@ skills: skills.map(
               </div>
 
 
-              {/* Duration */}
+              {/* ==================================================
+                  DURATION
+                  ================================================== */}
 
               <div>
 
@@ -326,7 +438,9 @@ skills: skills.map(
               </div>
 
 
-              {/* Location */}
+              {/* ==================================================
+                  LOCATION
+                  ================================================== */}
 
               <div>
 
@@ -356,7 +470,9 @@ skills: skills.map(
               </div>
 
 
-              {/* Mode */}
+              {/* ==================================================
+                  WORK MODE
+                  ================================================== */}
 
               <div>
 
@@ -388,7 +504,9 @@ skills: skills.map(
               </div>
 
 
-              {/* Deadline */}
+              {/* ==================================================
+                  DEADLINE
+                  ================================================== */}
 
               <div>
 
@@ -408,7 +526,9 @@ skills: skills.map(
               </div>
 
 
-              {/* Description */}
+              {/* ==================================================
+                  DESCRIPTION
+                  ================================================== */}
 
               <div className="md:col-span-2">
 
@@ -433,7 +553,9 @@ skills: skills.map(
           </div>
 
 
-          {/* Required Skills */}
+          {/* ======================================================
+              REQUIRED SKILLS
+              ====================================================== */}
 
           <div className="bg-white border rounded-2xl p-6 mt-6">
 
@@ -445,6 +567,10 @@ skills: skills.map(
               Add the skills candidates should have for this opportunity.
             </p>
 
+
+            {/* ==================================================
+                SKILL INPUT
+                ================================================== */}
 
             <div className="flex gap-3 mt-6">
 
@@ -464,94 +590,105 @@ skills: skills.map(
                 onClick={addSkill}
                 className="flex items-center gap-2 px-5 py-3 bg-slate-900 text-white rounded-lg font-medium hover:bg-slate-800"
               >
+
                 <Plus size={17} />
+
                 Add
+
               </button>
 
             </div>
 
 
-            {/* Skill Tags */}
+            {/* ==================================================
+                SKILL TAGS
+                ================================================== */}
 
             <div className="mt-6 space-y-4">
 
-  {skills.map((skill, index) => (
+              {skills.map((skill, index) => (
 
-    <div
-      key={skill.name}
-      className="border rounded-xl p-4"
-    >
+                <div
+                  key={skill.name}
+                  className="border rounded-xl p-4"
+                >
 
-      <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between">
 
-        <span className="font-medium text-slate-800">
-          {skill.name}
-        </span>
+                    <span className="font-medium text-slate-800">
+                      {skill.name}
+                    </span>
 
-        <span className="text-sm font-semibold text-blue-600">
-          {skill.requiredScore}%
-        </span>
+                    <span className="text-sm font-semibold text-blue-600">
+                      {skill.requiredScore}%
+                    </span>
 
-      </div>
-
-
-      <div className="flex items-center gap-4 mt-4">
-
-        <input
-          type="range"
-          min="10"
-          max="100"
-          step="5"
-          value={skill.requiredScore}
-          onChange={(e) => {
-
-            const updatedSkills =
-              [...skills];
-
-            updatedSkills[index] = {
-              ...updatedSkills[index],
-              requiredScore:
-                Number(e.target.value)
-            };
-
-            setSkills(updatedSkills);
-
-          }}
-          className="flex-1"
-        />
+                  </div>
 
 
-        <button
-          type="button"
-          onClick={() =>
-            removeSkill(skill.name)
-          }
-          className="p-2 text-slate-400 hover:text-red-500"
-        >
-          <X size={16} />
-        </button>
+                  <div className="flex items-center gap-4 mt-4">
 
-      </div>
+                    <input
+                      type="range"
+                      min="10"
+                      max="100"
+                      step="5"
+                      value={skill.requiredScore}
+                      onChange={(e) => {
+
+                        const updatedSkills =
+                          [...skills];
+
+                        updatedSkills[index] = {
+                          ...updatedSkills[index],
+                          requiredScore:
+                            Number(e.target.value)
+                        };
+
+                        setSkills(updatedSkills);
+
+                      }}
+                      className="flex-1"
+                    />
 
 
-      <div className="flex justify-between text-xs text-slate-400 mt-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        removeSkill(skill.name)
+                      }
+                      className="p-2 text-slate-400 hover:text-red-500"
+                    >
 
-        <span>
-          Basic
-        </span>
+                      <X size={16} />
 
-        <span>
-          Advanced
-        </span>
+                    </button>
 
-      </div>
+                  </div>
 
-    </div>
 
-  ))}
+                  <div className="flex justify-between text-xs text-slate-400 mt-2">
 
-</div>
+                    <span>
+                      Basic
+                    </span>
 
+                    <span>
+                      Advanced
+                    </span>
+
+                  </div>
+
+                </div>
+
+              ))}
+
+            </div>
+
+
+            {/* ==================================================
+                EMPTY SKILLS
+                ================================================== */}
 
             {skills.length === 0 && (
 
@@ -564,7 +701,9 @@ skills: skills.map(
           </div>
 
 
-          {/* Message */}
+          {/* ======================================================
+              MESSAGE
+              ====================================================== */}
 
           {message && (
 
@@ -575,13 +714,17 @@ skills: skills.map(
                   : "bg-red-50 text-red-600"
               }`}
             >
+
               {message}
+
             </div>
 
           )}
 
 
-          {/* Actions */}
+          {/* ======================================================
+              ACTIONS
+              ====================================================== */}
 
           <div className="flex justify-end gap-3 mt-6">
 
@@ -594,6 +737,7 @@ skills: skills.map(
             >
               Cancel
             </button>
+
 
             <button
               type="submit"
@@ -609,7 +753,9 @@ skills: skills.map(
       </div>
 
     </div>
+
   );
+
 }
 
 export default PostOpportunity;

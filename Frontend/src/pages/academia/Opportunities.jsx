@@ -1,12 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { getIndustryOpportunities } from "../../utils/storage";
-import { opportunities as defaultOpportunities } from "../../data/opportunities";
-import {
-  calculateSkillMatch,
-  getMatchLabel,
-  getMissingSkills,
-} from "../../utils/skillMatching";
-
 import {
   Search,
   Filter,
@@ -21,68 +13,40 @@ import {
   Target,
   Clock3,
   GraduationCap,
+  AlertTriangle,
+  CheckCircle2,
 } from "lucide-react";
+
+import { apiGet } from "../../services/api";
 
 
 /* =========================================
    HELPERS
    ========================================= */
 
-function normalizeSkills(opportunity) {
-  if (Array.isArray(opportunity.skills)) {
-    return opportunity.skills.map((skill) => {
-      if (typeof skill === "string") {
-        return {
-          name: skill,
-          required: 80,
-        };
-      }
-
-      return {
-        name: skill.name || "Skill",
-        required: skill.required ?? 80,
-      };
-    });
-  }
-
-  if (Array.isArray(opportunity.skillRequirements)) {
-    return opportunity.skillRequirements.map((skill) => {
-      if (typeof skill === "string") {
-        return {
-          name: skill,
-          required: 80,
-        };
-      }
-
-      return {
-        name: skill.name || "Skill",
-        required: skill.required ?? 80,
-      };
-    });
-  }
-
-  return [];
-}
-
-
 function normalizeOpportunity(opportunity) {
-  const skills = normalizeSkills(opportunity);
+  const skills = Array.isArray(
+    opportunity.required_skills
+  )
+    ? opportunity.required_skills.map((skill) => ({
+        id: skill.id,
+        name: skill.name,
+        category: skill.category,
+        averageStudentScore:
+          skill.average_student_score ?? 0,
+      }))
+    : [];
 
   return {
     ...opportunity,
 
     company:
       opportunity.company ||
-      opportunity.organization ||
       "Industry Partner",
 
     type:
       opportunity.type ||
       "Internship",
-
-    sector:
-      opportunity.sector ||
-      "General",
 
     description:
       opportunity.description ||
@@ -105,18 +69,40 @@ function normalizeOpportunity(opportunity) {
       "Not specified",
 
     skills,
-
-    match:
-      typeof opportunity.match === "number"
-        ? opportunity.match
-        : 0,
-
-    applications:
-      opportunity.applications ?? 0,
-
-    candidates:
-      opportunity.candidates ?? 0,
   };
+}
+
+
+function calculateInstitutionalMatch(opportunity) {
+  const skills = opportunity.skills || [];
+
+  if (skills.length === 0) {
+    return 0;
+  }
+
+  const totalScore = skills.reduce(
+    (total, skill) =>
+      total +
+      Number(skill.averageStudentScore || 0),
+    0
+  );
+
+  return Math.round(
+    totalScore / skills.length
+  );
+}
+
+
+function getMatchLabel(percentage) {
+  if (percentage >= 75) {
+    return "Strong Match";
+  }
+
+  if (percentage >= 50) {
+    return "Moderate Match";
+  }
+
+  return "Needs Development";
 }
 
 
@@ -146,11 +132,38 @@ function getTypeStyle(type) {
 }
 
 
+function getSkillStatus(score) {
+  if (score >= 70) {
+    return {
+      label: "Ready",
+      style: "bg-green-50 text-green-700",
+    };
+  }
+
+  if (score >= 50) {
+    return {
+      label: "Developing",
+      style: "bg-yellow-50 text-yellow-700",
+    };
+  }
+
+  return {
+    label: "Gap",
+    style: "bg-red-50 text-red-600",
+  };
+}
+
+
 /* =========================================
    STAT CARD
    ========================================= */
 
-function StatCard({ title, value, subtitle, icon: Icon }) {
+function StatCard({
+  title,
+  value,
+  subtitle,
+  icon: Icon,
+}) {
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5">
 
@@ -173,10 +186,12 @@ function StatCard({ title, value, subtitle, icon: Icon }) {
         </div>
 
         <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center">
+
           <Icon
             size={21}
             className="text-blue-600"
           />
+
         </div>
 
       </div>
@@ -192,10 +207,16 @@ function StatCard({ title, value, subtitle, icon: Icon }) {
 
 function Opportunities() {
 
-  const [opportunitiesData, setOpportunitiesData] =
-    useState(
-      defaultOpportunities.map(normalizeOpportunity)
-    );
+  const [
+    opportunitiesData,
+    setOpportunitiesData,
+  ] = useState([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState("");
 
   const [search, setSearch] =
     useState("");
@@ -203,63 +224,60 @@ function Opportunities() {
   const [type, setType] =
     useState("All Types");
 
-  const [sector, setSector] =
-    useState("All Sectors");
-
-  const [selectedOpportunity, setSelectedOpportunity] =
-    useState(null);
+  const [
+    selectedOpportunity,
+    setSelectedOpportunity,
+  ] = useState(null);
 
 
   /* =========================================
-     LOAD INDUSTRY OPPORTUNITIES
+     LOAD OPPORTUNITIES
      ========================================= */
 
   useEffect(() => {
 
-    const industryOpportunities =
-      getIndustryOpportunities();
-
-    if (industryOpportunities.length > 0) {
-
-      setOpportunitiesData(
-        industryOpportunities.map(
-          normalizeOpportunity
-        )
-      );
-
-    } else {
-
-      setOpportunitiesData(
-        defaultOpportunities.map(
-          normalizeOpportunity
-        )
-      );
-
-    }
+    loadOpportunities();
 
   }, []);
 
 
-  /* =========================================
-     SECTORS
-     ========================================= */
+  async function loadOpportunities() {
 
-  const sectors = useMemo(() => {
+    try {
 
-    const uniqueSectors = [
-      ...new Set(
-        opportunitiesData
-          .map((item) => item.sector)
-          .filter(Boolean)
-      ),
-    ];
+      setLoading(true);
+      setError("");
 
-    return [
-      "All Sectors",
-      ...uniqueSectors,
-    ];
+      const response =
+        await apiGet(
+          "/academia/opportunities"
+        );
 
-  }, [opportunitiesData]);
+      const normalized =
+        Array.isArray(response)
+          ? response.map(
+              normalizeOpportunity
+            )
+          : [];
+
+      setOpportunitiesData(
+        normalized
+      );
+
+    } catch (err) {
+
+      setError(
+        err.message ||
+          "Failed to load opportunities."
+      );
+
+    } finally {
+
+      setLoading(false);
+
+    }
+
+  }
 
 
   /* =========================================
@@ -273,7 +291,9 @@ function Opportunities() {
         (opportunity) => {
 
           const searchText =
-            search.toLowerCase().trim();
+            search
+              .toLowerCase()
+              .trim();
 
           const title =
             String(
@@ -290,28 +310,30 @@ function Opportunities() {
 
           const matchesSearch =
             !searchText ||
-            title.includes(searchText) ||
-            company.includes(searchText) ||
-            skills.some((skill) =>
-              String(
-                skill.name || ""
-              )
-                .toLowerCase()
-                .includes(searchText)
+            title.includes(
+              searchText
+            ) ||
+            company.includes(
+              searchText
+            ) ||
+            skills.some(
+              (skill) =>
+                String(
+                  skill.name || ""
+                )
+                  .toLowerCase()
+                  .includes(
+                    searchText
+                  )
             );
 
           const matchesType =
             type === "All Types" ||
             opportunity.type === type;
 
-          const matchesSector =
-            sector === "All Sectors" ||
-            opportunity.sector === sector;
-
           return (
             matchesSearch &&
-            matchesType &&
-            matchesSector
+            matchesType
           );
 
         }
@@ -321,7 +343,6 @@ function Opportunities() {
       opportunitiesData,
       search,
       type,
-      sector,
     ]);
 
 
@@ -333,7 +354,6 @@ function Opportunities() {
 
     setSearch("");
     setType("All Types");
-    setSector("All Sectors");
 
   };
 
@@ -355,12 +375,67 @@ function Opportunities() {
     ).length;
 
   const potentialMatches =
-    opportunitiesData.reduce(
-      (total, item) =>
-        total +
-        (Number(item.candidates) || 0),
-      0
+    opportunitiesData.filter(
+      (item) =>
+        calculateInstitutionalMatch(
+          item
+        ) >= 70
+    ).length;
+
+
+  /* =========================================
+     LOADING
+     ========================================= */
+
+  if (loading) {
+
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+
+        <p className="text-slate-500">
+          Loading industry opportunities...
+        </p>
+
+      </div>
     );
+
+  }
+
+
+  /* =========================================
+     ERROR
+     ========================================= */
+
+  if (error) {
+
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-2xl p-6">
+
+        <div className="flex items-center gap-3">
+
+          <AlertTriangle
+            size={22}
+            className="text-red-500"
+          />
+
+          <div>
+
+            <h2 className="font-semibold text-red-700">
+              Unable to load opportunities
+            </h2>
+
+            <p className="text-sm text-red-600 mt-1">
+              {error}
+            </p>
+
+          </div>
+
+        </div>
+
+      </div>
+    );
+
+  }
 
 
   /* =========================================
@@ -386,8 +461,8 @@ function Opportunities() {
           </h1>
 
           <p className="text-slate-500 mt-2">
-            Explore industry opportunities and identify
-            students who may be suitable based on their skills.
+            Explore active industry opportunities and
+            evaluate institutional student readiness.
           </p>
 
         </div>
@@ -412,7 +487,7 @@ function Opportunities() {
         <StatCard
           title="Available Opportunities"
           value={opportunitiesData.length}
-          subtitle="Across industry partners"
+          subtitle="Currently active"
           icon={BriefcaseBusiness}
         />
 
@@ -431,9 +506,9 @@ function Opportunities() {
         />
 
         <StatCard
-          title="Potential Matches"
+          title="Strong Matches"
           value={potentialMatches}
-          subtitle="Students matching requirements"
+          subtitle="Opportunities with 70%+ readiness"
           icon={Users}
         />
 
@@ -444,7 +519,7 @@ function Opportunities() {
 
       <section className="bg-white border border-slate-200 rounded-2xl p-4">
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
           {/* SEARCH */}
 
@@ -459,7 +534,9 @@ function Opportunities() {
               type="text"
               value={search}
               onChange={(e) =>
-                setSearch(e.target.value)
+                setSearch(
+                  e.target.value
+                )
               }
               placeholder="Search opportunities, companies or skills..."
               className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm"
@@ -480,7 +557,9 @@ function Opportunities() {
             <select
               value={type}
               onChange={(e) =>
-                setType(e.target.value)
+                setType(
+                  e.target.value
+                )
               }
               className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl outline-none focus:border-blue-500 text-sm bg-white"
             >
@@ -505,40 +584,11 @@ function Opportunities() {
 
           </div>
 
-
-          {/* SECTOR */}
-
-          <div className="relative">
-
-            <Building2
-              size={17}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-            />
-
-            <select
-              value={sector}
-              onChange={(e) =>
-                setSector(e.target.value)
-              }
-              className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl outline-none focus:border-blue-500 text-sm bg-white"
-            >
-
-              {sectors.map((item) => (
-                <option key={item}>
-                  {item}
-                </option>
-              ))}
-
-            </select>
-
-          </div>
-
         </div>
 
 
         {(search ||
-          type !== "All Types" ||
-          sector !== "All Sectors") && (
+          type !== "All Types") && (
 
           <button
             onClick={clearFilters}
@@ -568,11 +618,11 @@ function Opportunities() {
           />
 
           <h3 className="font-semibold text-slate-800 mt-4">
-            No opportunities found
+            No active opportunities found
           </h3>
 
           <p className="text-sm text-slate-500 mt-1">
-            Try changing your search or filters.
+            Active industry opportunities will appear here.
           </p>
 
         </div>
@@ -585,13 +635,14 @@ function Opportunities() {
             (opportunity) => {
 
               const matchPercentage =
-  calculateSkillMatch(opportunity);
+                calculateInstitutionalMatch(
+                  opportunity
+                );
 
-const matchLabel =
-  getMatchLabel(matchPercentage);
-
-const missingSkills =
-  getMissingSkills(opportunity);
+              const matchLabel =
+                getMatchLabel(
+                  matchPercentage
+                );
 
               return (
 
@@ -683,7 +734,9 @@ const missingSkills =
 
                       <CalendarDays size={14} />
 
-                      Deadline {opportunity.deadline}
+                      Deadline{" "}
+
+                      {opportunity.deadline}
 
                     </div>
 
@@ -710,44 +763,33 @@ const missingSkills =
 
                     <div className="flex flex-wrap gap-2 mt-2">
 
-                      {opportunity.skills.map(
-                        (skill) => (
+                      {opportunity.skills.length ===
+                      0 ? (
 
-                          <span
-                            key={skill.name}
-                            className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs"
-                          >
-                            {skill.name}
-                          </span>
+                        <span className="text-xs text-slate-400">
+                          No required skills specified
+                        </span>
 
+                      ) : (
+
+                        opportunity.skills.map(
+                          (skill) => (
+
+                            <span
+                              key={skill.id}
+                              className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs"
+                            >
+                              {skill.name}
+                            </span>
+
+                          )
                         )
+
                       )}
 
                     </div>
 
                   </div>
-                  {missingSkills.length > 0 && (
-  <div className="mt-3">
-
-    <p className="text-xs font-medium text-amber-600">
-      Student Skill Gaps
-    </p>
-
-    <div className="flex flex-wrap gap-2 mt-2">
-
-      {missingSkills.map((skill) => (
-        <span
-          key={skill}
-          className="px-2.5 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs"
-        >
-          {skill}
-        </span>
-      ))}
-
-    </div>
-
-  </div>
-)}
 
 
                   {/* MATCH */}
@@ -764,7 +806,7 @@ const missingSkills =
                         />
 
                         <span className="text-sm font-medium text-slate-700">
-                          Student skill compatibility
+                          Institutional readiness
                         </span>
 
                       </div>
@@ -794,7 +836,7 @@ const missingSkills =
                           matchPercentage
                         )}`}
                       >
-                        {matchPercentage}% match
+                        {matchPercentage}% readiness
                       </span>
 
                     </div>
@@ -807,7 +849,7 @@ const missingSkills =
                   <div className="flex items-center justify-between mt-5 pt-4 border-t border-slate-100">
 
                     <span className="text-xs text-slate-400">
-                      Industry opportunity
+                      Active industry opportunity
                     </span>
 
                     <button
@@ -889,11 +931,15 @@ const missingSkills =
 
               <button
                 onClick={() =>
-                  setSelectedOpportunity(null)
+                  setSelectedOpportunity(
+                    null
+                  )
                 }
                 className="p-2 rounded-lg hover:bg-slate-100 text-slate-500"
               >
+
                 <X size={20} />
+
               </button>
 
             </div>
@@ -914,7 +960,7 @@ const missingSkills =
                 </span>
 
                 <span className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-xs">
-                  {selectedOpportunity.sector}
+                  Active
                 </span>
 
               </div>
@@ -996,42 +1042,75 @@ const missingSkills =
               <div>
 
                 <h3 className="font-semibold text-slate-900">
-                  Required Skills
+                  Required Skills & Institutional Readiness
                 </h3>
 
                 <div className="mt-3 space-y-4">
 
-                  {selectedOpportunity.skills.map(
-                    (skill) => (
+                  {selectedOpportunity.skills.length ===
+                  0 ? (
 
-                      <div key={skill.name}>
+                    <p className="text-sm text-slate-500">
+                      No required skills specified.
+                    </p>
 
-                        <div className="flex justify-between mb-1.5">
+                  ) : (
 
-                          <span className="text-sm text-slate-700">
-                            {skill.name}
-                          </span>
+                    selectedOpportunity.skills.map(
+                      (skill) => {
 
-                          <span className="text-sm font-semibold text-slate-800">
-                            {skill.required}%
-                          </span>
+                        const status =
+                          getSkillStatus(
+                            skill.averageStudentScore
+                          );
 
-                        </div>
+                        return (
 
-                        <div className="h-2 bg-slate-100 rounded-full">
+                          <div key={skill.id}>
 
-                          <div
-                            className="h-full bg-blue-600 rounded-full"
-                            style={{
-                              width: `${skill.required}%`,
-                            }}
-                          />
+                            <div className="flex justify-between items-center mb-1.5">
 
-                        </div>
+                              <div className="flex items-center gap-2">
 
-                      </div>
+                                <span className="text-sm text-slate-700">
+                                  {skill.name}
+                                </span>
 
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${status.style}`}
+                                >
+                                  {status.label}
+                                </span>
+
+                              </div>
+
+                              <span className="text-sm font-semibold text-slate-800">
+                                {skill.averageStudentScore}%
+                              </span>
+
+                            </div>
+
+                            <div className="h-2 bg-slate-100 rounded-full">
+
+                              <div
+                                className="h-full bg-blue-600 rounded-full"
+                                style={{
+                                  width: `${Math.min(
+                                    skill.averageStudentScore,
+                                    100
+                                  )}%`,
+                                }}
+                              />
+
+                            </div>
+
+                          </div>
+
+                        );
+
+                      }
                     )
+
                   )}
 
                 </div>
@@ -1053,27 +1132,29 @@ const missingSkills =
                   <div>
 
                     <h3 className="font-semibold text-blue-900">
-                      Student Match Summary
+                      Institutional Match Summary
                     </h3>
 
                     <p className="text-sm text-blue-800/70 mt-1">
 
-  Current student skill compatibility is{" "}
+                      Current average student readiness
+                      for this opportunity is{" "}
 
-  <strong>
-    {calculateSkillMatch(selectedOpportunity)}%
-  </strong>
+                      <strong>
+                        {calculateInstitutionalMatch(
+                          selectedOpportunity
+                        )}%
+                      </strong>
 
-  {" "}
+                      {" — "}
 
-  {getMatchLabel(
-    calculateSkillMatch(selectedOpportunity)
-  ).toLowerCase()}
+                      {getMatchLabel(
+                        calculateInstitutionalMatch(
+                          selectedOpportunity
+                        )
+                      ).toLowerCase()}.
 
-  {" "}for this opportunity based on
-  the available student skill profile.
-
-</p>
+                    </p>
 
                   </div>
 
@@ -1086,24 +1167,17 @@ const missingSkills =
 
             {/* MODAL FOOTER */}
 
-            <div className="p-6 border-t border-slate-100 flex justify-end gap-3">
+            <div className="p-6 border-t border-slate-100 flex justify-end">
 
               <button
                 onClick={() =>
-                  setSelectedOpportunity(null)
+                  setSelectedOpportunity(
+                    null
+                  )
                 }
                 className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 Close
-              </button>
-
-              <button
-                onClick={() =>
-                  setSelectedOpportunity(null)
-                }
-                className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800"
-              >
-                View Matching Students
               </button>
 
             </div>

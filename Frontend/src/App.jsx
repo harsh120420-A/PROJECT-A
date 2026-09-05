@@ -13,6 +13,11 @@ import Applications from "./pages/student/Applications";
 import Portfolio from "./pages/student/Portfolio";
 import Learning from "./pages/student/Learning";
 import Profile from "./pages/student/Profile";
+
+import IndustryLayout from "./layouts/IndustryLayout";
+import StudentLayout from "./layouts/StudentLayout";
+import AcademiaLayout from "./layouts/AcademiaLayout";
+
 import IndustryDashboard from "./pages/industry/IndustryDashboard";
 import PostOpportunity from "./pages/industry/PostOpportunity";
 import MyOpportunities from "./pages/industry/MyOpportunities";
@@ -20,7 +25,8 @@ import EditOpportunity from "./pages/industry/EditOpportunity";
 import Candidates from "./pages/industry/Candidates";
 import CandidateProfile from "./pages/industry/CandidateProfile";
 import ShortlistedCandidates from "./pages/industry/ShortlistedCandidates";
-import AcademiaLayout from "./layouts/AcademiaLayout";
+import IndustryCollaborations from "./pages/industry/Academia_Collaborations";
+
 import AcademiaDashboard from "./pages/academia/Dashboard";
 import AcademiaStudents from "./pages/academia/Students";
 import SkillAnalytics from "./pages/academia/SkillAnalytics";
@@ -36,7 +42,6 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-
         {/* Public Pages */}
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
@@ -52,75 +57,47 @@ function App() {
         <Route path="/portfolio" element={<Portfolio />} />
         <Route path="/learning" element={<Learning />} />
         <Route path="/profile" element={<Profile />} />
-        
-        <Route path="/industry/dashboard" element={<IndustryDashboard />} />
-        <Route path="/industry/post-opportunity" element={<PostOpportunity />} />
-        <Route path="/industry/opportunities" element={<MyOpportunities />} />
-        <Route path="/industry/opportunities/:id/edit" element={<EditOpportunity />} />
-        <Route path="/industry/candidates/:id" element={<Candidates />} />
-        <Route path="/industry/candidates/:opportunityId/:candidateId" element={<CandidateProfile />} />
-        <Route path="/industry/shortlisted" element={<ShortlistedCandidates />} />
 
+        <Route path="/industry" element={<IndustryLayout />}>
+          <Route path="dashboard" element={<IndustryDashboard />} />
+          <Route path="post-opportunity" element={<PostOpportunity />} />
+          <Route path="opportunities" element={<MyOpportunities />} />
+          <Route path="opportunities/:id/edit" element={<EditOpportunity />} />
+          <Route path="candidates/:id" element={<Candidates />} />
+          <Route
+            path="candidates/:opportunityId/:candidateId"
+            element={<CandidateProfile />}
+          />
+          <Route path="shortlisted" element={<ShortlistedCandidates />} />
+          <Route
+            path="academia-collaborations"
+            element={<IndustryCollaborations />}
+          />
+        </Route>
         {/* Academia Portal */}
-<Route path="/academia" element={<AcademiaLayout />}>
+        <Route path="/academia" element={<AcademiaLayout />}>
+          <Route index element={<Navigate to="dashboard" replace />} />
 
-  <Route
-    index
-    element={<Navigate to="dashboard" replace />}
-  />
+          <Route path="dashboard" element={<AcademiaDashboard />} />
 
-  <Route
-    path="dashboard"
-    element={<AcademiaDashboard />}
-  />
+          <Route path="students" element={<AcademiaStudents />} />
 
-  <Route
-    path="students"
-    element={<AcademiaStudents />}
-  />
+          <Route path="skill-analytics" element={<SkillAnalytics />} />
 
-  <Route
-    path="skill-analytics"
-    element={<SkillAnalytics />}
-  />
+          <Route path="skill-gaps" element={<AcademiaSkillGaps />} />
 
-  <Route
-    path="skill-gaps"
-    element={<AcademiaSkillGaps />}
-  />
+          <Route path="industry-demand" element={<IndustryDemand />} />
 
-  <Route
-    path="industry-demand"
-    element={<IndustryDemand />}
-  />
+          <Route path="opportunities" element={<AcademiaOpportunities />} />
 
-  <Route
-    path="opportunities"
-    element={<AcademiaOpportunities />}
-  />
+          <Route path="collaborations" element={<Collaborations />} />
 
-  <Route
-    path="collaborations"
-    element={<Collaborations />}
-  />
+          <Route path="placement-analytics" element={<PlacementAnalytics />} />
 
-  <Route
-    path="placement-analytics"
-    element={<PlacementAnalytics />}
-  />
+          <Route path="reports" element={<Reports />} />
 
-  <Route
-    path="reports"
-    element={<Reports />}
-  />
-
-  <Route
-    path="profile"
-    element={<AcademiaProfile />}
-  />
-
-</Route>
-
+          <Route path="profile" element={<AcademiaProfile />} />
+        </Route>
       </Routes>
     </BrowserRouter>
   );
