@@ -30,3 +30,11 @@ class LoginRequest(BaseModel):
     email: EmailStr
 
     password: str
+    
+    
+    
+class AcademiaProfileUpdate(BaseModel):
+    name: str | None = None
+    email: str | None = None
+    institution_name: str | None = None
+    designation: str | None = None

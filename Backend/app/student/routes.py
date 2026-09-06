@@ -275,6 +275,34 @@ def get_student_skills(
 
 
 # ============================================================
+# GET COMMON SKILL CATALOG
+# ============================================================
+
+@router.get("/skills/catalog")
+def get_skill_catalog(
+    current_user: User = Depends(
+        require_role("STUDENT")
+    ),
+    db: Session = Depends(get_db),
+):
+
+    skills = (
+        db.query(Skill)
+        .order_by(Skill.name.asc())
+        .all()
+    )
+
+    return [
+        {
+            "id": skill.id,
+            "name": skill.name,
+            "category": skill.category,
+        }
+        for skill in skills
+    ]
+
+
+# ============================================================
 # STUDENT DASHBOARD
 # ============================================================
 

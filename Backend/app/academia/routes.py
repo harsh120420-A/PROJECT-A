@@ -18,7 +18,8 @@ from ..models import (
 )
 
 from ..auth.dependencies import require_role
-
+from ..models.user import User
+from ..models.academia import Academician
 
 router = APIRouter(
     prefix="/academia",
@@ -1517,6 +1518,8 @@ def get_placement_analytics(
         .count()
     )
 
+
+
     # --------------------------------------------------------
     # Placement rate
     #
@@ -1543,19 +1546,404 @@ def get_placement_analytics(
     # Selected / shortlisted
     # --------------------------------------------------------
 
-    if shortlisted > 0:
+    if (shortlisted + selected) > 0:
 
         selection_rate = round(
             (
                 selected
-                / shortlisted
+                / (shortlisted + selected)
             )
             * 100
-        )
+    )
 
     else:
 
         selection_rate = 0
+
+        # --------------------------------------------------------
+    # Branch-wise analytics
+    # --------------------------------------------------------
+
+    branch_rows = (
+        db.query(
+            Student.branch,
+            Student.id,
+        )
+        .filter(
+            Student.branch.isnot(None),
+            Student.branch != "",
+        )
+        .all()
+    )
+
+    branch_analytics = {}
+
+    for branch, student_id in branch_rows:
+
+        if branch not in branch_analytics:
+            branch_analytics[branch] = {
+                "branch": branch,
+                "students": 0,
+                "applications": 0,
+                "selected": 0,
+            }
+
+        branch_analytics[branch]["students"] += 1
+
+        student_applications = (
+            db.query(Application)
+            .filter(
+                Application.student_id == student_id
+            )
+            .all()
+        )
+
+        branch_analytics[branch]["applications"] += len(
+            student_applications
+        )
+
+        branch_analytics[branch]["selected"] += sum(
+            1
+            for application in student_applications
+            if application.status == "Selected"
+        )
+
+    # --------------------------------------------------------
+    # Calculate branch selection rate
+    # --------------------------------------------------------
+
+    for branch_data in branch_analytics.values():
+
+        if branch_data["applications"] > 0:
+
+            branch_data["selection_rate"] = round(
+                (
+                    branch_data["selected"]
+                    / branch_data["applications"]
+                )
+                * 100
+            )
+
+        else:
+
+            branch_data["selection_rate"] = 0
+
+    branch_analytics = list(
+        branch_analytics.values()
+    )
+    
+        # --------------------------------------------------------
+    # Top recruiter analytics
+    # --------------------------------------------------------
+
+    recruiter_rows = (
+        db.query(
+            Company.company_name,
+            Application.status,
+        )
+        .join(
+            Opportunity,
+            Application.opportunity_id == Opportunity.id,
+        )
+        .join(
+            Company,
+            Opportunity.company_id == Company.id,
+        )
+        .all()
+    )
+
+    recruiter_analytics = {}
+
+    for company_name, status in recruiter_rows:
+
+        if company_name not in recruiter_analytics:
+            recruiter_analytics[company_name] = {
+                "company": company_name,
+                "applications": 0,
+                "selected": 0,
+                "shortlisted": 0,
+            }
+
+        recruiter_analytics[company_name]["applications"] += 1
+
+        if status == "Selected":
+            recruiter_analytics[company_name]["selected"] += 1
+
+        elif status == "Shortlisted":
+            recruiter_analytics[company_name]["shortlisted"] += 1
+
+    # --------------------------------------------------------
+    # Calculate recruiter selection rate
+    # --------------------------------------------------------
+
+    for recruiter in recruiter_analytics.values():
+
+        considered = (
+            recruiter["selected"]
+            + recruiter["shortlisted"]
+        )
+
+        if considered > 0:
+
+            recruiter["selection_rate"] = round(
+                (
+                    recruiter["selected"]
+                    / considered
+                ) * 100
+            )
+
+        else:
+
+            recruiter["selection_rate"] = 0
+
+    # Highest applications first
+    recruiter_analytics = sorted(
+        recruiter_analytics.values(),
+        key=lambda item: item["applications"],
+        reverse=True,
+    )
+    
+    
+        # --------------------------------------------------------
+    # Placement trend by year
+    # --------------------------------------------------------
+
+    trend_rows = (
+        db.query(
+            Application.applied_at,
+            Application.status,
+        )
+        .filter(
+            Application.applied_at.isnot(None)
+        )
+        .all()
+    )
+
+    placement_trend = {}
+
+    for applied_at, status in trend_rows:
+
+        year = applied_at.year
+
+        if year not in placement_trend:
+            placement_trend[year] = {
+                "year": year,
+                "applications": 0,
+                "selected": 0,
+            }
+
+        placement_trend[year]["applications"] += 1
+
+        if status == "Selected":
+            placement_trend[year]["selected"] += 1
+
+    # --------------------------------------------------------
+    # Calculate yearly placement rate
+    # --------------------------------------------------------
+
+    for year_data in placement_trend.values():
+
+        if year_data["applications"] > 0:
+
+            year_data["placement_rate"] = round(
+                (
+                    year_data["selected"]
+                    / year_data["applications"]
+                ) * 100
+            )
+
+        else:
+
+            year_data["placement_rate"] = 0
+
+    placement_trend = sorted(
+        placement_trend.values(),
+        key=lambda item: item["year"],
+    )
+    
+    
+        # --------------------------------------------------------
+    # Sector-wise analytics
+    # --------------------------------------------------------
+
+    sector_rows = (
+        db.query(
+            Company.industry,
+            Application.status,
+        )
+        .join(
+            Opportunity,
+            Application.opportunity_id == Opportunity.id,
+        )
+        .join(
+            Company,
+            Opportunity.company_id == Company.id,
+        )
+        .all()
+    )
+
+    sector_analytics = {}
+
+    for industry, status in sector_rows:
+
+        sector = (
+            industry.strip()
+            if industry and industry.strip()
+            else "Other / Unspecified"
+        )
+
+        if sector not in sector_analytics:
+            sector_analytics[sector] = {
+                "sector": sector,
+                "applications": 0,
+                "selected": 0,
+            }
+
+        sector_analytics[sector]["applications"] += 1
+
+        if status == "Selected":
+            sector_analytics[sector]["selected"] += 1
+
+    # --------------------------------------------------------
+    # Calculate sector selection rate
+    # --------------------------------------------------------
+
+    for sector_data in sector_analytics.values():
+
+        if sector_data["applications"] > 0:
+
+            sector_data["selection_rate"] = round(
+                (
+                    sector_data["selected"]
+                    / sector_data["applications"]
+                ) * 100
+            )
+
+        else:
+
+            sector_data["selection_rate"] = 0
+
+    # Highest applications first
+    sector_analytics = sorted(
+        sector_analytics.values(),
+        key=lambda item: item["applications"],
+        reverse=True,
+    )
+    
+    
+        # --------------------------------------------------------
+    # Institutional branch insights
+    # --------------------------------------------------------
+
+    strongest_branch = None
+    weakest_branch = None
+
+    if branch_analytics:
+
+        strongest_branch = max(
+            branch_analytics,
+            key=lambda item: item["selection_rate"],
+        )
+
+        weakest_branch = min(
+            branch_analytics,
+            key=lambda item: item["selection_rate"],
+        )
+        
+        # --------------------------------------------------------
+    # Salary distribution of selected students
+    # --------------------------------------------------------
+
+    salary_rows = (
+        db.query(
+            Opportunity.salary_min_lpa,
+            Opportunity.salary_max_lpa,
+            Application.status,
+        )
+        .join(
+            Application,
+            Application.opportunity_id == Opportunity.id,
+        )
+        .filter(
+            Application.status == "Selected"
+        )
+        .all()
+    )
+
+    salary_distribution = {
+        "< 4 LPA": 0,
+        "4–6 LPA": 0,
+        "6–8 LPA": 0,
+        "8–10 LPA": 0,
+        "> 10 LPA": 0,
+    }
+
+    for salary_min, salary_max, status in salary_rows:
+
+        # Ignore selected applications where salary
+        # information has not been provided.
+        if salary_min is None and salary_max is None:
+            continue
+
+        # If only minimum salary is available,
+        # use that value.
+        if salary_min is not None and salary_max is None:
+            salary = float(salary_min)
+
+        # If only maximum salary is available,
+        # use that value.
+        elif salary_min is None and salary_max is not None:
+            salary = float(salary_max)
+
+        # If both are available, use midpoint.
+        else:
+            salary = (
+                float(salary_min)
+                + float(salary_max)
+            ) / 2
+
+        if salary < 4:
+            salary_distribution["< 4 LPA"] += 1
+
+        elif salary < 6:
+            salary_distribution["4–6 LPA"] += 1
+
+        elif salary < 8:
+            salary_distribution["6–8 LPA"] += 1
+
+        elif salary < 10:
+            salary_distribution["8–10 LPA"] += 1
+
+        else:
+            salary_distribution["> 10 LPA"] += 1
+
+    # --------------------------------------------------------
+    # Convert to frontend-friendly list
+    # --------------------------------------------------------
+
+    total_salary_students = sum(
+        salary_distribution.values()
+    )
+
+    salary_analytics = []
+
+    for salary_range, students in salary_distribution.items():
+
+        percentage = (
+            round(
+                (students / total_salary_students) * 100
+            )
+            if total_salary_students > 0
+            else 0
+        )
+
+        salary_analytics.append(
+            {
+                "range": salary_range,
+                "students": students,
+                "percentage": percentage,
+            }
+        )
 
     return {
         "summary": {
@@ -1576,6 +1964,21 @@ def get_placement_analytics(
             "selected": selected,
             "rejected": rejected,
         },
+
+                        "branch_analytics": branch_analytics,
+
+        "recruiter_analytics": recruiter_analytics,
+
+               "sector_analytics": sector_analytics,
+
+        "placement_trend": placement_trend,
+
+
+        "institutional_insights": {
+            "strongest_branch": strongest_branch,
+            "weakest_branch": weakest_branch,
+        },
+        "salary_analytics": salary_analytics,
     }
 
 # ============================================================
@@ -1755,6 +2158,140 @@ def get_academia_reports(
         )
         .count()
     )
+    
+        # --------------------------------------------------------
+    # SKILL & INDUSTRY ALIGNMENT
+    # --------------------------------------------------------
+
+    skill_alignment = []
+
+    skills = (
+        db.query(Skill)
+        .order_by(Skill.name)
+        .all()
+    )
+
+    for skill in skills:
+
+        student_scores = (
+            db.query(StudentSkill)
+            .filter(
+                StudentSkill.skill_id == skill.id
+            )
+            .all()
+        )
+
+        if student_scores:
+            readiness = round(
+                sum(
+                    record.score or 0
+                    for record in student_scores
+                )
+                / len(student_scores)
+            )
+        else:
+            readiness = 0
+
+        demand_count = (
+            db.query(OpportunitySkill)
+            .join(
+                Opportunity,
+                OpportunitySkill.opportunity_id
+                == Opportunity.id
+            )
+            .filter(
+                OpportunitySkill.skill_id == skill.id,
+                Opportunity.status == "Active"
+            )
+            .count()
+        )
+
+        if active_opportunities > 0:
+            demand = round(
+                (
+                    demand_count
+                    / active_opportunities
+                )
+                * 100
+            )
+        else:
+            demand = 0
+
+        skill_alignment.append({
+            "skill": skill.name,
+            "readiness": readiness,
+            "demand": min(demand, 100),
+        })
+        
+        
+        # --------------------------------------------------------
+    # DEPARTMENT PERFORMANCE
+    # --------------------------------------------------------
+
+    department_performance = []
+
+    branches = (
+        db.query(Student.branch)
+        .filter(
+            Student.branch.isnot(None),
+            Student.branch != ""
+        )
+        .distinct()
+        .all()
+    )
+
+    for (branch,) in branches:
+
+        branch_students = (
+            db.query(Student)
+            .filter(
+                Student.branch == branch
+            )
+            .all()
+        )
+
+        student_count = len(branch_students)
+
+        if student_count == 0:
+            continue
+
+        readiness = round(
+            sum(
+                student.readiness or 0
+                for student in branch_students
+            )
+            / student_count
+        )
+
+        branch_student_ids = [
+            student.id
+            for student in branch_students
+        ]
+
+        selected_count = (
+            db.query(Application)
+            .filter(
+                Application.student_id.in_(
+                    branch_student_ids
+                ),
+                Application.status == "Selected"
+            )
+            .count()
+        )
+
+        placement = round(
+            (
+                selected_count
+                / student_count
+            )
+            * 100
+        )
+
+        department_performance.append({
+            "department": branch,
+            "readiness": readiness,
+            "placement": min(placement, 100),
+        })
 
     # --------------------------------------------------------
     # REPORT
@@ -1794,5 +2331,137 @@ def get_academia_reports(
             "active": active_collaborations,
             "pending": pending_collaborations,
             "completed": completed_collaborations,
+        },
+        
+        "skill_alignment": skill_alignment,
+
+        "department_performance": department_performance,
+    }
+
+
+class AcademiaProfileUpdate(BaseModel):
+    name: str | None = None
+    email: str | None = None
+    institution_name: str | None = None
+    designation: str | None = None
+    
+@router.get("/profile")
+def get_academia_profile(
+    current_user: User = Depends(
+        require_role("ACADEMIA")
+    ),
+    db: Session = Depends(get_db),
+):
+
+    academician = get_current_academician(
+        current_user,
+        db,
+    )
+
+    return {
+        "id": current_user.id,
+        "name": current_user.name,
+        "email": current_user.email,
+        "role": current_user.role,
+        "institution_name": academician.institution_name,
+        "designation": academician.designation,
+    }
+    
+    
+@router.put("/profile")
+def update_academia_profile(
+    profile_data: AcademiaProfileUpdate,
+    current_user: User = Depends(
+        require_role("ACADEMIA")
+    ),
+    db: Session = Depends(get_db),
+):
+
+    academician = get_current_academician(
+        current_user,
+        db,
+    )
+
+    # --------------------------------------------------------
+    # UPDATE USER INFORMATION
+    # --------------------------------------------------------
+
+    if profile_data.name is not None:
+
+        name = profile_data.name.strip()
+
+        if not name:
+            raise HTTPException(
+                status_code=400,
+                detail="Name cannot be empty."
+            )
+
+        current_user.name = name
+
+    if profile_data.email is not None:
+
+        email = profile_data.email.strip().lower()
+
+        if not email:
+            raise HTTPException(
+                status_code=400,
+                detail="Email cannot be empty."
+            )
+
+        existing_user = (
+            db.query(User)
+            .filter(
+                User.email == email,
+                User.id != current_user.id
+            )
+            .first()
+        )
+
+        if existing_user:
+            raise HTTPException(
+                status_code=400,
+                detail="Email is already registered."
+            )
+
+        current_user.email = email
+
+    # --------------------------------------------------------
+    # UPDATE ACADEMICIAN INFORMATION
+    # --------------------------------------------------------
+
+    if profile_data.institution_name is not None:
+
+        institution_name = (
+            profile_data.institution_name.strip()
+        )
+
+        if not institution_name:
+            raise HTTPException(
+                status_code=400,
+                detail="Institution name cannot be empty."
+            )
+
+        academician.institution_name = institution_name
+
+    if profile_data.designation is not None:
+
+        academician.designation = (
+            profile_data.designation.strip()
+        )
+
+    db.commit()
+
+    db.refresh(current_user)
+    db.refresh(academician)
+
+    return {
+        "message": "Profile updated successfully.",
+        "profile": {
+            "id": current_user.id,
+            "name": current_user.name,
+            "email": current_user.email,
+            "role": current_user.role,
+            "institution_name": academician.institution_name,
+            "designation": academician.designation,
         },
     }

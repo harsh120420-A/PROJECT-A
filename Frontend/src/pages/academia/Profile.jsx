@@ -2,43 +2,273 @@ import {
   UserRound,
   Building2,
   Mail,
-  Phone,
-  MapPin,
   ShieldCheck,
   Edit3,
   Save,
   X,
+  RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
-import { useState } from "react";
+
+import { useEffect, useState } from "react";
+
+import {
+  apiGet,
+  apiPut,
+} from "../../services/api";
+
 
 function Profile() {
+
   const [editing, setEditing] = useState(false);
 
   const [profile, setProfile] = useState({
-    name: "Academician",
-    role: "Institution Admin",
-    institution: "SkillBridge Institute",
-    email: "academia@skillbridge.edu",
-    phone: "+91 98765 43210",
-    location: "India",
+    name: "",
+    role: "",
+    institution_name: "",
+    email: "",
+    designation: "",
   });
 
-  const handleChange = (field, value) => {
+  const [loading, setLoading] = useState(true);
+
+  const [saving, setSaving] = useState(false);
+
+  const [error, setError] = useState("");
+
+  const [success, setSuccess] = useState("");
+
+
+  // --------------------------------------------------------
+  // LOAD PROFILE
+  // --------------------------------------------------------
+
+  const loadProfile = async () => {
+
+    try {
+
+      setLoading(true);
+      setError("");
+
+      const data = await apiGet(
+        "/academia/profile"
+      );
+
+      setProfile({
+        name: data.name || "",
+        role: data.role || "",
+        institution_name:
+          data.institution_name || "",
+        email: data.email || "",
+        designation:
+          data.designation || "",
+      });
+
+    } catch (err) {
+
+      console.error(
+        "Failed to load profile:",
+        err
+      );
+
+      setError(
+        err.message ||
+        "Unable to load profile."
+      );
+
+    } finally {
+
+      setLoading(false);
+
+    }
+
+  };
+
+
+  useEffect(() => {
+
+    loadProfile();
+
+  }, []);
+
+
+  // --------------------------------------------------------
+  // HANDLE INPUT
+  // --------------------------------------------------------
+
+  const handleChange = (
+    field,
+    value
+  ) => {
+
     setProfile((current) => ({
       ...current,
       [field]: value,
     }));
+
   };
 
-  const handleSave = () => {
-    setEditing(false);
+
+  // --------------------------------------------------------
+  // SAVE PROFILE
+  // --------------------------------------------------------
+
+  const handleSave = async () => {
+
+    try {
+
+      setSaving(true);
+      setError("");
+      setSuccess("");
+
+      const response = await apiPut(
+        "/academia/profile",
+        {
+          name: profile.name,
+          email: profile.email,
+          institution_name:
+            profile.institution_name,
+          designation:
+            profile.designation,
+        }
+      );
+
+      const updatedProfile =
+        response.profile;
+
+      setProfile({
+        name: updatedProfile.name || "",
+        role: updatedProfile.role || "",
+        institution_name:
+          updatedProfile.institution_name || "",
+        email:
+          updatedProfile.email || "",
+        designation:
+          updatedProfile.designation || "",
+      });
+
+      setEditing(false);
+
+      setSuccess(
+        "Profile updated successfully."
+      );
+
+    } catch (err) {
+
+      console.error(
+        "Failed to update profile:",
+        err
+      );
+
+      setError(
+        err.message ||
+        "Unable to update profile."
+      );
+
+    } finally {
+
+      setSaving(false);
+
+    }
+
   };
+
+
+  // --------------------------------------------------------
+  // CANCEL EDIT
+  // --------------------------------------------------------
+
+  const handleCancel = async () => {
+
+    setEditing(false);
+
+    setError("");
+    setSuccess("");
+
+    await loadProfile();
+
+  };
+
+
+  // --------------------------------------------------------
+  // LOADING
+  // --------------------------------------------------------
+
+  if (loading) {
+
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+
+        <div className="text-center">
+
+          <RefreshCw
+            size={28}
+            className="mx-auto text-blue-600 animate-spin"
+          />
+
+          <p className="text-sm text-slate-500 mt-3">
+            Loading profile...
+          </p>
+
+        </div>
+
+      </div>
+    );
+
+  }
+
+
+  // --------------------------------------------------------
+  // ERROR
+  // --------------------------------------------------------
+
+  if (error && !profile.name) {
+
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-2xl p-6">
+
+        <div className="flex items-start gap-4">
+
+          <AlertTriangle
+            size={22}
+            className="text-red-600"
+          />
+
+          <div>
+
+            <h2 className="font-semibold text-red-900">
+              Unable to load profile
+            </h2>
+
+            <p className="text-sm text-red-700 mt-1">
+              {error}
+            </p>
+
+            <button
+              onClick={loadProfile}
+              className="mt-4 flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-medium hover:bg-red-700"
+            >
+              <RefreshCw size={15} />
+              Retry
+            </button>
+
+          </div>
+
+        </div>
+
+      </div>
+    );
+
+  }
+
 
   return (
     <div className="space-y-7">
 
       {/* Header */}
+
       <div>
+
         <p className="text-sm text-blue-600 font-medium">
           ACCOUNT
         </p>
@@ -50,10 +280,34 @@ function Profile() {
         <p className="text-slate-500 mt-2">
           Manage your academic administrator profile and institution details.
         </p>
+
       </div>
 
 
+      {/* Success */}
+
+      {success && (
+
+        <div className="bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm">
+          {success}
+        </div>
+
+      )}
+
+
+      {/* Error */}
+
+      {error && (
+
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
+          {error}
+        </div>
+
+      )}
+
+
       {/* Profile Header Card */}
+
       <section className="bg-white border border-slate-200 rounded-2xl p-6">
 
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
@@ -69,6 +323,7 @@ function Profile() {
 
             </div>
 
+
             <div>
 
               <h2 className="text-xl font-bold text-slate-900">
@@ -76,7 +331,7 @@ function Profile() {
               </h2>
 
               <p className="text-sm text-slate-500 mt-1">
-                {profile.role}
+                {profile.designation || profile.role}
               </p>
 
               <div className="flex items-center gap-1.5 mt-2">
@@ -100,7 +355,11 @@ function Profile() {
           {!editing ? (
 
             <button
-              onClick={() => setEditing(true)}
+              onClick={() => {
+                setEditing(true);
+                setSuccess("");
+                setError("");
+              }}
               className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-medium hover:bg-slate-800"
             >
               <Edit3 size={16} />
@@ -112,19 +371,36 @@ function Profile() {
             <div className="flex gap-2">
 
               <button
-                onClick={() => setEditing(false)}
-                className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50"
+                onClick={handleCancel}
+                disabled={saving}
+                className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               >
                 <X size={16} />
                 Cancel
               </button>
 
+
               <button
                 onClick={handleSave}
-                className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-medium hover:bg-slate-800"
+                disabled={saving}
+                className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-medium hover:bg-slate-800 disabled:opacity-50"
               >
-                <Save size={16} />
-                Save Changes
+
+                {saving ? (
+                  <>
+                    <RefreshCw
+                      size={16}
+                      className="animate-spin"
+                    />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save size={16} />
+                    Save Changes
+                  </>
+                )}
+
               </button>
 
             </div>
@@ -136,7 +412,8 @@ function Profile() {
       </section>
 
 
-      {/* Profile Information */}
+      {/* Personal Information */}
+
       <section className="bg-white border border-slate-200 rounded-2xl p-6">
 
         <div className="flex items-center gap-2">
@@ -147,6 +424,7 @@ function Profile() {
           />
 
           <div>
+
             <h2 className="font-semibold text-slate-900">
               Personal Information
             </h2>
@@ -154,6 +432,7 @@ function Profile() {
             <p className="text-sm text-slate-500 mt-1">
               Your administrator account information.
             </p>
+
           </div>
 
         </div>
@@ -162,6 +441,7 @@ function Profile() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
 
           {/* Name */}
+
           <div>
 
             <label className="block text-xs font-medium text-slate-500 mb-2">
@@ -179,7 +459,10 @@ function Profile() {
                 value={profile.name}
                 disabled={!editing}
                 onChange={(e) =>
-                  handleChange("name", e.target.value)
+                  handleChange(
+                    "name",
+                    e.target.value
+                  )
                 }
                 className={`w-full pl-10 pr-4 py-2.5 border rounded-xl text-sm outline-none ${
                   editing
@@ -194,6 +477,7 @@ function Profile() {
 
 
           {/* Role */}
+
           <div>
 
             <label className="block text-xs font-medium text-slate-500 mb-2">
@@ -210,6 +494,7 @@ function Profile() {
 
 
           {/* Email */}
+
           <div>
 
             <label className="block text-xs font-medium text-slate-500 mb-2">
@@ -227,7 +512,10 @@ function Profile() {
                 value={profile.email}
                 disabled={!editing}
                 onChange={(e) =>
-                  handleChange("email", e.target.value)
+                  handleChange(
+                    "email",
+                    e.target.value
+                  )
                 }
                 className={`w-full pl-10 pr-4 py-2.5 border rounded-xl text-sm outline-none ${
                   editing
@@ -241,34 +529,29 @@ function Profile() {
           </div>
 
 
-          {/* Phone */}
+          {/* Designation */}
+
           <div>
 
             <label className="block text-xs font-medium text-slate-500 mb-2">
-              Phone Number
+              Designation
             </label>
 
-            <div className="relative">
-
-              <Phone
-                size={16}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              />
-
-              <input
-                value={profile.phone}
-                disabled={!editing}
-                onChange={(e) =>
-                  handleChange("phone", e.target.value)
-                }
-                className={`w-full pl-10 pr-4 py-2.5 border rounded-xl text-sm outline-none ${
-                  editing
-                    ? "border-slate-200 bg-white focus:border-blue-500"
-                    : "border-slate-100 bg-slate-50 text-slate-600"
-                }`}
-              />
-
-            </div>
+            <input
+              value={profile.designation}
+              disabled={!editing}
+              onChange={(e) =>
+                handleChange(
+                  "designation",
+                  e.target.value
+                )
+              }
+              className={`w-full px-4 py-2.5 border rounded-xl text-sm outline-none ${
+                editing
+                  ? "border-slate-200 bg-white focus:border-blue-500"
+                  : "border-slate-100 bg-slate-50 text-slate-600"
+              }`}
+            />
 
           </div>
 
@@ -278,6 +561,7 @@ function Profile() {
 
 
       {/* Institution Information */}
+
       <section className="bg-white border border-slate-200 rounded-2xl p-6">
 
         <div className="flex items-center gap-2">
@@ -304,6 +588,8 @@ function Profile() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
 
+          {/* Institution */}
+
           <div>
 
             <label className="block text-xs font-medium text-slate-500 mb-2">
@@ -318,45 +604,11 @@ function Profile() {
               />
 
               <input
-                value={profile.institution}
+                value={profile.institution_name}
                 disabled={!editing}
                 onChange={(e) =>
                   handleChange(
-                    "institution",
-                    e.target.value
-                  )
-                }
-                className={`w-full pl-10 pr-4 py-2.5 border rounded-xl text-sm outline-none ${
-                  editing
-                    ? "border-slate-200 bg-white focus:border-blue-500"
-                    : "border-slate-100 bg-slate-50 text-slate-600"
-                }`}
-              />
-
-            </div>
-
-          </div>
-
-
-          <div>
-
-            <label className="block text-xs font-medium text-slate-500 mb-2">
-              Location
-            </label>
-
-            <div className="relative">
-
-              <MapPin
-                size={16}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              />
-
-              <input
-                value={profile.location}
-                disabled={!editing}
-                onChange={(e) =>
-                  handleChange(
-                    "location",
+                    "institution_name",
                     e.target.value
                   )
                 }
@@ -377,6 +629,7 @@ function Profile() {
 
 
       {/* Account Status */}
+
       <section className="bg-green-50 border border-green-100 rounded-2xl p-6">
 
         <div className="flex items-start gap-4">
@@ -415,5 +668,6 @@ function Profile() {
     </div>
   );
 }
+
 
 export default Profile;
