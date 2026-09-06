@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   FileText,
   Users,
@@ -12,99 +12,14 @@ import {
   CheckCircle2,
   AlertTriangle,
   CalendarDays,
-  BarChart3,
-  GraduationCap
+  GraduationCap,
 } from "lucide-react";
 
-const reportMetrics = [
-  {
-    title: "Students Assessed",
-    value: "1,248",
-    change: "+8.4%",
-    subtitle: "Skill assessment coverage",
-    icon: Users,
-  },
-  {
-    title: "Average Skill Readiness",
-    value: "68%",
-    change: "+5.2%",
-    subtitle: "Across tracked skills",
-    icon: Brain,
-  },
-  {
-    title: "Industry Opportunities",
-    value: "36",
-    change: "+12%",
-    subtitle: "Active opportunities",
-    icon: BriefcaseBusiness,
-  },
-  {
-    title: "Placement Rate",
-    value: "76%",
-    change: "+4.1%",
-    subtitle: "Current placement cycle",
-    icon: TrendingUp,
-  },
-];
-
-const skillSummary = [
-  { skill: "Python", readiness: 78, demand: 85 },
-  { skill: "SQL", readiness: 61, demand: 80 },
-  { skill: "Machine Learning", readiness: 45, demand: 75 },
-  { skill: "Cloud Computing", readiness: 32, demand: 70 },
-  { skill: "Power BI", readiness: 30, demand: 65 },
-];
-
-const departmentSummary = [
-  {
-    department: "Computer Science",
-    readiness: 78,
-    placement: 86,
-  },
-  {
-    department: "Information Technology",
-    readiness: 72,
-    placement: 82,
-  },
-  {
-    department: "Electronics",
-    readiness: 64,
-    placement: 71,
-  },
-  {
-    department: "Mechanical",
-    readiness: 57,
-    placement: 59,
-  },
-];
-
-const activitySummary = [
-  {
-    label: "Industry Workshops",
-    value: 12,
-    icon: BarChart3,
-  },
-  {
-    label: "Live Projects",
-    value: 11,
-    icon: BriefcaseBusiness,
-  },
-  {
-    label: "Guest Lectures",
-    value: 15,
-    icon: Users,
-  },
-  {
-    label: "Research Collaborations",
-    value: 5,
-    icon: Building2,
-  },
-];
+import { apiGet } from "../../services/api";
 
 function MetricCard({
   title,
   value,
-  change,
   subtitle,
   icon: Icon,
 }) {
@@ -136,50 +51,307 @@ function MetricCard({
 
       </div>
 
-      <div className="flex items-center gap-1 mt-4">
-        <TrendingUp
-          size={14}
-          className="text-green-600"
-        />
-
-        <span className="text-xs font-medium text-green-600">
-          {change}
-        </span>
-
-        <span className="text-xs text-slate-400">
-          from previous period
-        </span>
-      </div>
-
     </div>
   );
 }
 
+
 function Reports() {
-  const [period, setPeriod] = useState("Current Academic Year");
+
+  const [period, setPeriod] = useState(
+    "Current Academic Year"
+  );
+
   const [reportType, setReportType] = useState(
     "Institutional Overview"
   );
 
-  const handleGenerate = () => {
-    alert(
-      `Report generated: ${reportType} — ${period}`
-    );
+  const [reportData, setReportData] = useState(null);
+
+  const [loading, setLoading] = useState(true);
+
+  const [error, setError] = useState("");
+
+
+  // --------------------------------------------------------
+  // LOAD REPORT DATA
+  // --------------------------------------------------------
+
+  const loadReports = async () => {
+
+    try {
+
+      setLoading(true);
+      setError("");
+
+      const data = await apiGet(
+        "/academia/reports"
+      );
+
+      setReportData(data);
+
+    } catch (err) {
+
+      console.error(
+        "Failed to load reports:",
+        err
+      );
+
+      setError(
+        err.message ||
+        "Unable to load report data."
+      );
+
+    } finally {
+
+      setLoading(false);
+
+    }
+
   };
 
-  const handleExport = () => {
-    alert(
-      "Export functionality will be connected to the backend."
+
+  useEffect(() => {
+
+    loadReports();
+
+  }, []);
+
+
+  // --------------------------------------------------------
+  // LOADING STATE
+  // --------------------------------------------------------
+
+  if (loading) {
+
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+
+        <div className="text-center">
+
+          <RefreshCw
+            size={28}
+            className="mx-auto text-blue-600 animate-spin"
+          />
+
+          <p className="text-sm text-slate-500 mt-3">
+            Loading institutional report...
+          </p>
+
+        </div>
+
+      </div>
     );
+
+  }
+
+
+  // --------------------------------------------------------
+  // ERROR STATE
+  // --------------------------------------------------------
+
+  if (error) {
+
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-2xl p-6">
+
+        <div className="flex items-start gap-4">
+
+          <AlertTriangle
+            size={22}
+            className="text-red-600 mt-0.5"
+          />
+
+          <div>
+
+            <h2 className="font-semibold text-red-900">
+              Unable to load report
+            </h2>
+
+            <p className="text-sm text-red-700 mt-1">
+              {error}
+            </p>
+
+            <button
+              onClick={loadReports}
+              className="mt-4 flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-medium hover:bg-red-700"
+            >
+              <RefreshCw size={15} />
+              Retry
+            </button>
+
+          </div>
+
+        </div>
+
+      </div>
+    );
+
+  }
+
+
+  if (!reportData) {
+    return null;
+  }
+
+
+  // --------------------------------------------------------
+  // EXTRACT DATABASE DATA
+  // --------------------------------------------------------
+
+  const students = reportData.students || {};
+
+  const skills = reportData.skills || {};
+
+  const opportunities =
+    reportData.opportunities || {};
+
+  const applications =
+    reportData.applications || {};
+
+  const collaborations =
+    reportData.collaborations || {};
+
+  const skillSummary =
+    reportData.skill_alignment || [];
+
+  const departmentSummary =
+    reportData.department_performance || [];
+
+
+  // --------------------------------------------------------
+  // DYNAMIC VALUES
+  // --------------------------------------------------------
+
+  const totalStudents =
+    students.total || 0;
+
+  const averageReadiness =
+    students.average_readiness || 0;
+
+  const activeOpportunities =
+    opportunities.active || 0;
+
+  const placementRate =
+    applications.placement_rate || 0;
+
+
+  // --------------------------------------------------------
+  // REPORT SUMMARY
+  // --------------------------------------------------------
+
+  const largestSkillGap =
+    skillSummary.length > 0
+      ? [...skillSummary]
+          .sort(
+            (a, b) =>
+              (b.demand - b.readiness) -
+              (a.demand - a.readiness)
+          )[0]
+      : null;
+
+
+  const strongestSkill =
+    skillSummary.length > 0
+      ? [...skillSummary]
+          .sort(
+            (a, b) =>
+              (b.readiness - b.demand) -
+              (a.readiness - a.demand)
+          )[0]
+      : null;
+
+
+  const strongestDepartment =
+    departmentSummary.length > 0
+      ? [...departmentSummary]
+          .sort(
+            (a, b) =>
+              b.placement - a.placement
+          )[0]
+      : null;
+
+
+  // --------------------------------------------------------
+  // GENERATE REPORT
+  // --------------------------------------------------------
+
+  const handleGenerate = async () => {
+
+    await loadReports();
+
   };
+
+
+  // --------------------------------------------------------
+  // EXPORT
+  // --------------------------------------------------------
+
+  const handleExport = () => {
+
+    const reportText = `
+${reportType}
+${period}
+
+Institution: ${reportData.institution?.name || "N/A"}
+
+Students Assessed: ${totalStudents}
+Average Skill Readiness: ${averageReadiness}%
+Active Opportunities: ${activeOpportunities}
+Placement Rate: ${placementRate}%
+
+Total Skills: ${skills.total || 0}
+Average Skill Score: ${skills.average_score || 0}%
+
+Total Applications: ${applications.total || 0}
+Shortlisted: ${applications.shortlisted || 0}
+Selected: ${applications.selected || 0}
+Rejected: ${applications.rejected || 0}
+
+Total Collaborations: ${collaborations.total || 0}
+Active Collaborations: ${collaborations.active || 0}
+Pending Collaborations: ${collaborations.pending || 0}
+Completed Collaborations: ${collaborations.completed || 0}
+    `.trim();
+
+    const blob = new Blob(
+      [reportText],
+      {
+        type: "text/plain;charset=utf-8",
+      }
+    );
+
+    const url =
+      URL.createObjectURL(blob);
+
+    const link =
+      document.createElement("a");
+
+    link.href = url;
+
+    link.download =
+      "academia-institutional-report.txt";
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+
+  };
+
 
   return (
     <div className="space-y-7">
 
       {/* Header */}
+
       <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
 
         <div>
+
           <p className="text-sm text-blue-600 font-medium">
             INSTITUTIONAL INTELLIGENCE
           </p>
@@ -192,6 +364,7 @@ function Reports() {
             Consolidated institutional insights across skills,
             industry engagement and placement outcomes.
           </p>
+
         </div>
 
 
@@ -204,6 +377,7 @@ function Reports() {
             <RefreshCw size={16} />
             Generate Report
           </button>
+
 
           <button
             onClick={handleExport}
@@ -219,6 +393,7 @@ function Reports() {
 
 
       {/* Controls */}
+
       <section className="bg-white border border-slate-200 rounded-2xl p-5">
 
         <div className="flex items-center gap-2 mb-4">
@@ -269,6 +444,7 @@ function Reports() {
               <option>
                 Department Performance Report
               </option>
+
             </select>
 
           </div>
@@ -309,6 +485,7 @@ function Reports() {
                 <option>
                   Previous Semester
                 </option>
+
               </select>
 
             </div>
@@ -321,28 +498,52 @@ function Reports() {
 
 
       {/* KPI Metrics */}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
 
-        {reportMetrics.map((item) => (
+        <MetricCard
+          title="Students Assessed"
+          value={totalStudents.toLocaleString()}
+          subtitle="Skill assessment coverage"
+          icon={Users}
+        />
 
-          <MetricCard
-            key={item.title}
-            {...item}
-          />
+        <MetricCard
+          title="Average Skill Readiness"
+          value={`${averageReadiness}%`}
+          subtitle="Across tracked students"
+          icon={Brain}
+        />
 
-        ))}
+        <MetricCard
+          title="Industry Opportunities"
+          value={activeOpportunities}
+          subtitle="Active opportunities"
+          icon={BriefcaseBusiness}
+        />
+
+        <MetricCard
+          title="Placement Rate"
+          value={`${placementRate}%`}
+          subtitle="Based on application outcomes"
+          icon={TrendingUp}
+        />
 
       </div>
 
 
       {/* Executive Summary */}
+
       <section className="bg-slate-900 rounded-2xl p-6 text-white">
 
         <div className="flex items-start gap-4">
 
           <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+
             <FileText size={21} />
+
           </div>
+
 
           <div>
 
@@ -351,17 +552,38 @@ function Reports() {
             </p>
 
             <h2 className="text-xl font-semibold mt-1">
-              Institutional readiness is improving, but targeted
-              skill development remains necessary.
+              Institutional readiness is currently at{" "}
+              {averageReadiness}%.
             </h2>
 
             <p className="text-sm text-slate-300 mt-3 max-w-4xl leading-relaxed">
-              The institution currently has 1,248 assessed students
-              with an average skill readiness of 68%. Technology and
-              analytics remain strong areas, while Cloud Computing,
-              Power BI and Machine Learning continue to show the
-              largest demand-readiness gaps. Placement performance
-              stands at 76%, supported by growing industry engagement.
+
+              The institution currently has{" "}
+              {totalStudents.toLocaleString()} assessed{" "}
+              {totalStudents === 1
+                ? "student"
+                : "students"}{" "}
+              with an average skill readiness of{" "}
+              {averageReadiness}%.
+              There are{" "}
+              {activeOpportunities} active industry{" "}
+              {activeOpportunities === 1
+                ? "opportunity"
+                : "opportunities"}{" "}
+              and the current application-based placement
+              rate is {placementRate}%.
+
+              {largestSkillGap && (
+                <>
+                  {" "}
+                  The largest current demand-readiness gap is
+                  observed in{" "}
+                  <strong>
+                    {largestSkillGap.skill}
+                  </strong>.
+                </>
+              )}
+
             </p>
 
           </div>
@@ -372,11 +594,13 @@ function Reports() {
 
 
       {/* Skill & Industry Alignment */}
+
       <section className="bg-white border border-slate-200 rounded-2xl p-6">
 
         <div className="flex items-start justify-between">
 
           <div>
+
             <h2 className="text-lg font-semibold text-slate-900">
               Skill & Industry Alignment
             </h2>
@@ -384,6 +608,7 @@ function Reports() {
             <p className="text-sm text-slate-500 mt-1">
               Compare student readiness against current industry demand.
             </p>
+
           </div>
 
           <Target
@@ -396,129 +621,142 @@ function Reports() {
 
         <div className="mt-6 overflow-x-auto">
 
-          <table className="w-full min-w-[650px]">
+          {skillSummary.length === 0 ? (
 
-            <thead>
+            <p className="text-sm text-slate-500 py-6 text-center">
+              No skill alignment data available.
+            </p>
 
-              <tr className="border-b border-slate-100">
+          ) : (
 
-                <th className="text-left pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                  Skill
-                </th>
+            <table className="w-full min-w-[650px]">
 
-                <th className="text-left pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                  Student Readiness
-                </th>
+              <thead>
 
-                <th className="text-left pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                  Industry Demand
-                </th>
+                <tr className="border-b border-slate-100">
 
-                <th className="text-left pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                  Alignment
-                </th>
+                  <th className="text-left pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    Skill
+                  </th>
 
-              </tr>
+                  <th className="text-left pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    Student Readiness
+                  </th>
 
-            </thead>
+                  <th className="text-left pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    Industry Demand
+                  </th>
 
-            <tbody>
+                  <th className="text-left pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    Alignment
+                  </th>
 
-              {skillSummary.map((item) => {
+                </tr>
 
-                const gap =
-                  item.demand - item.readiness;
-
-                return (
-                  <tr
-                    key={item.skill}
-                    className="border-b border-slate-50 last:border-0"
-                  >
-
-                    <td className="py-4">
-
-                      <span className="text-sm font-semibold text-slate-800">
-                        {item.skill}
-                      </span>
-
-                    </td>
+              </thead>
 
 
-                    <td className="py-4">
+              <tbody>
 
-                      <div className="flex items-center gap-3">
+                {skillSummary.map((item) => {
 
-                        <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden">
+                  const gap =
+                    item.demand -
+                    item.readiness;
 
-                          <div
-                            className="h-full bg-slate-400 rounded-full"
-                            style={{
-                              width: `${item.readiness}%`,
-                            }}
-                          />
+                  return (
+                    <tr
+                      key={item.skill}
+                      className="border-b border-slate-50 last:border-0"
+                    >
+
+                      <td className="py-4">
+
+                        <span className="text-sm font-semibold text-slate-800">
+                          {item.skill}
+                        </span>
+
+                      </td>
+
+
+                      <td className="py-4">
+
+                        <div className="flex items-center gap-3">
+
+                          <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden">
+
+                            <div
+                              className="h-full bg-slate-400 rounded-full"
+                              style={{
+                                width: `${item.readiness}%`,
+                              }}
+                            />
+
+                          </div>
+
+                          <span className="text-sm text-slate-700">
+                            {item.readiness}%
+                          </span>
 
                         </div>
 
-                        <span className="text-sm text-slate-700">
-                          {item.readiness}%
-                        </span>
-
-                      </div>
-
-                    </td>
+                      </td>
 
 
-                    <td className="py-4">
+                      <td className="py-4">
 
-                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3">
 
-                        <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden">
 
-                          <div
-                            className="h-full bg-blue-600 rounded-full"
-                            style={{
-                              width: `${item.demand}%`,
-                            }}
-                          />
+                            <div
+                              className="h-full bg-blue-600 rounded-full"
+                              style={{
+                                width: `${item.demand}%`,
+                              }}
+                            />
+
+                          </div>
+
+                          <span className="text-sm text-slate-700">
+                            {item.demand}%
+                          </span>
 
                         </div>
 
-                        <span className="text-sm text-slate-700">
-                          {item.demand}%
+                      </td>
+
+
+                      <td className="py-4">
+
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                            gap >= 30
+                              ? "bg-red-50 text-red-600"
+                              : gap >= 15
+                              ? "bg-orange-50 text-orange-600"
+                              : "bg-green-50 text-green-600"
+                          }`}
+                        >
+                          {gap <= 10
+                            ? "Strong"
+                            : gap <= 20
+                            ? "Moderate"
+                            : "Needs Attention"}
                         </span>
 
-                      </div>
+                      </td>
 
-                    </td>
+                    </tr>
+                  );
 
+                })}
 
-                    <td className="py-4">
+              </tbody>
 
-                      <span
-                        className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                          gap >= 30
-                            ? "bg-red-50 text-red-600"
-                            : gap >= 15
-                            ? "bg-orange-50 text-orange-600"
-                            : "bg-green-50 text-green-600"
-                        }`}
-                      >
-                        {gap <= 10
-                          ? "Strong"
-                          : gap <= 20
-                          ? "Moderate"
-                          : "Needs Attention"}
-                      </span>
+            </table>
 
-                    </td>
-
-                  </tr>
-                );
-              })}
-
-            </tbody>
-
-          </table>
+          )}
 
         </div>
 
@@ -526,11 +764,13 @@ function Reports() {
 
 
       {/* Department Performance */}
+
       <section className="bg-white border border-slate-200 rounded-2xl p-6">
 
         <div className="flex items-start justify-between">
 
           <div>
+
             <h2 className="text-lg font-semibold text-slate-900">
               Department Performance
             </h2>
@@ -538,74 +778,90 @@ function Reports() {
             <p className="text-sm text-slate-500 mt-1">
               Compare skill readiness and placement outcomes.
             </p>
+
           </div>
 
-          <GraduationCapIcon />
+          <GraduationCap
+            size={20}
+            className="text-slate-400"
+          />
 
         </div>
 
 
         <div className="mt-6 space-y-5">
 
-          {departmentSummary.map((item) => (
+          {departmentSummary.length === 0 ? (
 
-            <div key={item.department}>
+            <p className="text-sm text-slate-500 py-6 text-center">
+              No department data available.
+            </p>
 
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
+          ) : (
 
-                <span className="text-sm font-semibold text-slate-700">
-                  {item.department}
-                </span>
+            departmentSummary.map((item) => (
 
-                <div className="flex items-center gap-5 text-xs">
+              <div key={item.department}>
 
-                  <span className="text-slate-500">
-                    Readiness{" "}
-                    <strong className="text-slate-800">
-                      {item.readiness}%
-                    </strong>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
+
+                  <span className="text-sm font-semibold text-slate-700">
+                    {item.department}
                   </span>
 
-                  <span className="text-slate-500">
-                    Placement{" "}
-                    <strong className="text-slate-800">
-                      {item.placement}%
-                    </strong>
-                  </span>
+                  <div className="flex items-center gap-5 text-xs">
+
+                    <span className="text-slate-500">
+                      Readiness{" "}
+                      <strong className="text-slate-800">
+                        {item.readiness}%
+                      </strong>
+                    </span>
+
+                    <span className="text-slate-500">
+                      Placement{" "}
+                      <strong className="text-slate-800">
+                        {item.placement}%
+                      </strong>
+                    </span>
+
+                  </div>
+
+                </div>
+
+
+                <div className="grid grid-cols-2 gap-3">
+
+                  <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+
+                    <div
+                      className="h-full bg-blue-600 rounded-full"
+                      style={{
+                        width: `${item.readiness}%`,
+                      }}
+                    />
+
+                  </div>
+
+
+                  <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+
+                    <div
+                      className="h-full bg-green-500 rounded-full"
+                      style={{
+                        width: `${item.placement}%`,
+                      }}
+                    />
+
+                  </div>
 
                 </div>
 
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+            ))
 
-                <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-
-                  <div
-                    className="h-full bg-blue-600 rounded-full"
-                    style={{
-                      width: `${item.readiness}%`,
-                    }}
-                  />
-
-                </div>
-
-                <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-
-                  <div
-                    className="h-full bg-green-500 rounded-full"
-                    style={{
-                      width: `${item.placement}%`,
-                    }}
-                  />
-
-                </div>
-
-              </div>
-
-            </div>
-
-          ))}
+          )}
 
         </div>
 
@@ -628,9 +884,11 @@ function Reports() {
 
 
       {/* Collaboration Summary */}
+
       <section className="bg-white border border-slate-200 rounded-2xl p-6">
 
         <div>
+
           <h2 className="text-lg font-semibold text-slate-900">
             Industry Collaboration Summary
           </h2>
@@ -638,41 +896,98 @@ function Reports() {
           <p className="text-sm text-slate-500 mt-1">
             Institutional engagement with industry partners.
           </p>
+
         </div>
 
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
 
-          {activitySummary.map((item) => {
+          <div className="border border-slate-100 rounded-xl p-4">
 
-            const Icon = item.icon;
+            <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
 
-            return (
-              <div
-                key={item.label}
-                className="border border-slate-100 rounded-xl p-4"
-              >
+              <Building2
+                size={18}
+                className="text-blue-600"
+              />
 
-                <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+            </div>
 
-                  <Icon
-                    size={18}
-                    className="text-blue-600"
-                  />
+            <p className="text-xs text-slate-500 mt-3">
+              Total Collaborations
+            </p>
 
-                </div>
+            <p className="text-2xl font-bold text-slate-900 mt-1">
+              {collaborations.total || 0}
+            </p>
 
-                <p className="text-xs text-slate-500 mt-3">
-                  {item.label}
-                </p>
+          </div>
 
-                <p className="text-2xl font-bold text-slate-900 mt-1">
-                  {item.value}
-                </p>
 
-              </div>
-            );
-          })}
+          <div className="border border-slate-100 rounded-xl p-4">
+
+            <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+
+              <CheckCircle2
+                size={18}
+                className="text-blue-600"
+              />
+
+            </div>
+
+            <p className="text-xs text-slate-500 mt-3">
+              Active
+            </p>
+
+            <p className="text-2xl font-bold text-slate-900 mt-1">
+              {collaborations.active || 0}
+            </p>
+
+          </div>
+
+
+          <div className="border border-slate-100 rounded-xl p-4">
+
+            <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+
+              <CalendarDays
+                size={18}
+                className="text-blue-600"
+              />
+
+            </div>
+
+            <p className="text-xs text-slate-500 mt-3">
+              Pending
+            </p>
+
+            <p className="text-2xl font-bold text-slate-900 mt-1">
+              {collaborations.pending || 0}
+            </p>
+
+          </div>
+
+
+          <div className="border border-slate-100 rounded-xl p-4">
+
+            <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+
+              <TrendingUp
+                size={18}
+                className="text-blue-600"
+              />
+
+            </div>
+
+            <p className="text-xs text-slate-500 mt-3">
+              Completed
+            </p>
+
+            <p className="text-2xl font-bold text-slate-900 mt-1">
+              {collaborations.completed || 0}
+            </p>
+
+          </div>
 
         </div>
 
@@ -680,6 +995,7 @@ function Reports() {
 
 
       {/* Key Findings */}
+
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
 
         <section className="bg-green-50 border border-green-100 rounded-2xl p-6">
@@ -695,6 +1011,7 @@ function Reports() {
 
             </div>
 
+
             <div>
 
               <p className="text-xs text-green-600 font-medium tracking-wide">
@@ -702,14 +1019,29 @@ function Reports() {
               </p>
 
               <h2 className="text-lg font-semibold text-green-900 mt-1">
-                Strong technology-sector alignment.
+
+                {strongestSkill
+                  ? `${strongestSkill.skill} shows strong readiness.`
+                  : "No strength data available."}
+
               </h2>
 
+
               <p className="text-sm text-green-800/70 mt-2 leading-relaxed">
-                Python and core software skills demonstrate strong
-                student readiness relative to current industry demand.
-                Computer Science also records the highest placement
-                performance.
+
+                {strongestSkill
+                  ? `${strongestSkill.skill} currently has ${strongestSkill.readiness}% student readiness against ${strongestSkill.demand}% industry demand.`
+                  : "Skill performance data will appear here once assessment data is available."}
+
+                {strongestDepartment && (
+                  <>
+                    {" "}
+                    {strongestDepartment.department} currently records
+                    the highest placement performance at{" "}
+                    {strongestDepartment.placement}%.
+                  </>
+                )}
+
               </p>
 
             </div>
@@ -732,21 +1064,29 @@ function Reports() {
 
             </div>
 
+
             <div>
 
               <p className="text-xs text-red-600 font-medium tracking-wide">
                 KEY RISK
               </p>
 
+
               <h2 className="text-lg font-semibold text-red-900 mt-1">
-                Emerging skills remain underdeveloped.
+
+                {largestSkillGap
+                  ? `${largestSkillGap.skill} needs attention.`
+                  : "No major skill gap identified."}
+
               </h2>
 
+
               <p className="text-sm text-red-800/70 mt-2 leading-relaxed">
-                Cloud Computing, Power BI and Machine Learning show
-                significant gaps between industry demand and student
-                readiness. These areas should receive targeted
-                institutional intervention.
+
+                {largestSkillGap
+                  ? `${largestSkillGap.skill} has ${largestSkillGap.readiness}% student readiness compared with ${largestSkillGap.demand}% industry demand.`
+                  : "The system currently has insufficient skill-demand data to identify a major risk."}
+
               </p>
 
             </div>
@@ -759,6 +1099,7 @@ function Reports() {
 
 
       {/* Final Report Action */}
+
       <section className="bg-slate-900 rounded-2xl p-6 text-white">
 
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
@@ -770,12 +1111,12 @@ function Reports() {
             </p>
 
             <h2 className="text-xl font-semibold mt-1">
-              Institutional Overview — {period}
+              {reportType} — {period}
             </h2>
 
             <p className="text-sm text-slate-300 mt-2">
-              Review the consolidated metrics before connecting
-              report generation to the backend.
+              Report data is generated from the current
+              institutional database.
             </p>
 
           </div>
@@ -797,13 +1138,5 @@ function Reports() {
   );
 }
 
-function GraduationCapIcon() {
-  return (
-    <GraduationCap
-      size={20}
-      className="text-slate-400"
-    />
-  );
-}
 
 export default Reports;

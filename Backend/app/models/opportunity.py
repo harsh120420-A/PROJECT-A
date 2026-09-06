@@ -5,7 +5,8 @@ from sqlalchemy import (
     Text,
     Date,
     DateTime,
-    ForeignKey
+    ForeignKey,
+    DECIMAL
 )
 from sqlalchemy.sql import func
 
@@ -55,6 +56,16 @@ class Opportunity(Base):
 
     duration = Column(
         String(100),
+        nullable=True
+    )
+    
+    salary_min_lpa = Column(
+    DECIMAL(10, 2),
+    nullable=True
+    )
+
+    salary_max_lpa = Column(
+        DECIMAL(10, 2),
         nullable=True
     )
 

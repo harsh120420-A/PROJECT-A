@@ -23,9 +23,11 @@ import PostOpportunity from "./pages/industry/PostOpportunity";
 import MyOpportunities from "./pages/industry/MyOpportunities";
 import EditOpportunity from "./pages/industry/EditOpportunity";
 import Candidates from "./pages/industry/Candidates";
+import CandidatesList from "./pages/industry/CandidatesList";
 import CandidateProfile from "./pages/industry/CandidateProfile";
 import ShortlistedCandidates from "./pages/industry/ShortlistedCandidates";
 import IndustryCollaborations from "./pages/industry/Academia_Collaborations";
+import IndustryProfile from "./pages/industry/Profile";
 
 import AcademiaDashboard from "./pages/academia/Dashboard";
 import AcademiaStudents from "./pages/academia/Students";
@@ -63,7 +65,9 @@ function App() {
           <Route path="post-opportunity" element={<PostOpportunity />} />
           <Route path="opportunities" element={<MyOpportunities />} />
           <Route path="opportunities/:id/edit" element={<EditOpportunity />} />
+          <Route path="candidates" element={<CandidatesList />} />
           <Route path="candidates/:id" element={<Candidates />} />
+
           <Route
             path="candidates/:opportunityId/:candidateId"
             element={<CandidateProfile />}
@@ -73,6 +77,8 @@ function App() {
             path="academia-collaborations"
             element={<IndustryCollaborations />}
           />
+
+          <Route path="profile" element={<IndustryProfile />} />
         </Route>
         {/* Academia Portal */}
         <Route path="/academia" element={<AcademiaLayout />}>

@@ -45,6 +45,9 @@ class OpportunityCreate(BaseModel):
     deadline: date | None = None
 
     skill_ids: list[int] = []
+    
+    salary_min_lpa: float | None = None
+    salary_max_lpa: float | None = None
 
 
 # ============================================================
@@ -73,7 +76,32 @@ def get_current_company(
 
     return company
 
+# ============================================================
+# GET AVAILABLE SKILLS
+# ============================================================
 
+@router.get("/skills")
+def get_available_skills(
+    current_user: User = Depends(
+        require_role("INDUSTRY")
+    ),
+    db: Session = Depends(get_db),
+):
+
+    skills = (
+        db.query(Skill)
+        .order_by(Skill.name.asc())
+        .all()
+    )
+
+    return [
+        {
+            "id": skill.id,
+            "name": skill.name,
+            "category": skill.category,
+        }
+        for skill in skills
+    ]
 # ============================================================
 # CREATE OPPORTUNITY
 # ============================================================
@@ -102,6 +130,8 @@ def create_opportunity(
         duration=request.duration,
         deadline=request.deadline,
         status="Active",
+        salary_min_lpa=request.salary_min_lpa,
+        salary_max_lpa=request.salary_max_lpa,
     )
 
     db.add(opportunity)
@@ -152,15 +182,28 @@ def create_opportunity(
             "duration": opportunity.duration,
             "deadline": opportunity.deadline,
             "status": opportunity.status,
+            "salary_min_lpa": opportunity.salary_min_lpa,
+            "salary_max_lpa": opportunity.salary_max_lpa,
         },
     }
 
 
 # ============================================================
+# INDUSTRY PROFILE SCHEMA
+# ============================================================
+
+class IndustryProfileUpdate(BaseModel):
+
+    name: str | None = None
+
+    email: str | None = None
+
+    company_name: str | None = None
+
+# ============================================================
 # GET MY OPPORTUNITIES
 # ============================================================
 
-@router.get("/opportunities")
 @router.get("/opportunities")
 def get_my_opportunities(
     current_user: User = Depends(
@@ -265,6 +308,12 @@ def get_my_opportunities(
 
             "duration":
                 opportunity.duration,
+                
+            "salary_min_lpa":
+                opportunity.salary_min_lpa,
+
+            "salary_max_lpa":
+                opportunity.salary_max_lpa,
 
             "deadline":
                 opportunity.deadline,
@@ -336,6 +385,18 @@ class OpportunityStatusUpdate(BaseModel):
     status: str
 
 
+class OpportunityUpdate(BaseModel):
+    title: str | None = None
+    type: str | None = None
+    description: str | None = None
+    location: str | None = None
+    mode: str | None = None
+    duration: str | None = None
+    deadline: date | None = None
+    salary_min_lpa: float | None = None
+    salary_max_lpa: float | None = None
+    skill_ids: list[int] | None = None
+
 @router.patch("/opportunities/{opportunity_id}/status")
 def update_opportunity_status(
     opportunity_id: int,
@@ -404,6 +465,193 @@ def update_opportunity_status(
             "id": opportunity.id,
             "title": opportunity.title,
             "status": opportunity.status,
+        },
+    }
+    
+    
+    # ============================================================
+# UPDATE OPPORTUNITY
+# ============================================================
+
+@router.patch("/opportunities/{opportunity_id}")
+def update_opportunity(
+    opportunity_id: int,
+    request: OpportunityUpdate,
+    current_user: User = Depends(
+        require_role("INDUSTRY")
+    ),
+    db: Session = Depends(get_db),
+):
+
+    company = get_current_company(
+        current_user,
+        db,
+    )
+
+    # --------------------------------------------------------
+    # Find opportunity belonging to this company
+    # --------------------------------------------------------
+
+    opportunity = (
+        db.query(Opportunity)
+        .filter(
+            Opportunity.id == opportunity_id,
+            Opportunity.company_id == company.id,
+        )
+        .first()
+    )
+
+    if not opportunity:
+        raise HTTPException(
+            status_code=404,
+            detail="Opportunity not found.",
+        )
+
+    # --------------------------------------------------------
+    # Validate salary range
+    # --------------------------------------------------------
+
+    if (
+        request.salary_min_lpa is not None
+        and request.salary_max_lpa is not None
+        and request.salary_min_lpa > request.salary_max_lpa
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Minimum salary cannot be greater than maximum salary.",
+        )
+
+    # --------------------------------------------------------
+    # Update basic opportunity details
+    # --------------------------------------------------------
+
+    if request.title is not None:
+        opportunity.title = request.title
+
+    if request.type is not None:
+        opportunity.type = request.type
+
+    if request.description is not None:
+        opportunity.description = request.description
+
+    if request.location is not None:
+        opportunity.location = request.location
+
+    if request.mode is not None:
+        opportunity.mode = request.mode
+
+    if request.duration is not None:
+        opportunity.duration = request.duration
+
+    if request.deadline is not None:
+        opportunity.deadline = request.deadline
+
+    if request.salary_min_lpa is not None:
+        opportunity.salary_min_lpa = request.salary_min_lpa
+
+    if request.salary_max_lpa is not None:
+        opportunity.salary_max_lpa = request.salary_max_lpa
+
+    # --------------------------------------------------------
+    # Update required skills
+    # --------------------------------------------------------
+
+    if request.skill_ids is not None:
+
+        # Validate all skill IDs first
+        skills = (
+            db.query(Skill)
+            .filter(
+                Skill.id.in_(request.skill_ids)
+            )
+            .all()
+        )
+
+        found_skill_ids = {
+            skill.id
+            for skill in skills
+        }
+
+        invalid_skill_ids = [
+            skill_id
+            for skill_id in request.skill_ids
+            if skill_id not in found_skill_ids
+        ]
+
+        if invalid_skill_ids:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    f"Skill IDs not found: "
+                    f"{invalid_skill_ids}"
+                ),
+            )
+
+        # Remove existing skill mappings
+        db.query(OpportunitySkill).filter(
+            OpportunitySkill.opportunity_id == opportunity.id
+        ).delete(
+            synchronize_session=False
+        )
+
+        # Add new skill mappings
+        for skill_id in request.skill_ids:
+
+            db.add(
+                OpportunitySkill(
+                    opportunity_id=opportunity.id,
+                    skill_id=skill_id,
+                )
+            )
+
+    # --------------------------------------------------------
+    # Save changes
+    # --------------------------------------------------------
+
+    db.commit()
+
+    db.refresh(opportunity)
+
+    # --------------------------------------------------------
+    # Get updated skills
+    # --------------------------------------------------------
+
+    updated_skills = (
+        db.query(Skill)
+        .join(
+            OpportunitySkill,
+            OpportunitySkill.skill_id == Skill.id
+        )
+        .filter(
+            OpportunitySkill.opportunity_id == opportunity.id
+        )
+        .all()
+    )
+
+    return {
+        "message": "Opportunity updated successfully",
+
+        "opportunity": {
+            "id": opportunity.id,
+            "company_id": opportunity.company_id,
+            "title": opportunity.title,
+            "type": opportunity.type,
+            "description": opportunity.description,
+            "location": opportunity.location,
+            "mode": opportunity.mode,
+            "duration": opportunity.duration,
+            "deadline": opportunity.deadline,
+            "salary_min_lpa": opportunity.salary_min_lpa,
+            "salary_max_lpa": opportunity.salary_max_lpa,
+            "status": opportunity.status,
+            "skills": [
+                {
+                    "id": skill.id,
+                    "name": skill.name,
+                    "category": skill.category,
+                }
+                for skill in updated_skills
+            ],
         },
     }
 
@@ -1177,5 +1425,145 @@ def update_collaboration_status(
             "description": collaboration.description,
             "status": collaboration.status,
             "created_at": collaboration.created_at,
+        },
+    }
+    
+    
+# ============================================================
+# GET INDUSTRY PROFILE
+# ============================================================
+
+@router.get("/profile")
+def get_industry_profile(
+    current_user: User = Depends(
+        require_role("INDUSTRY")
+    ),
+    db: Session = Depends(get_db),
+):
+
+    company = get_current_company(
+        current_user,
+        db,
+    )
+
+    return {
+        "id": current_user.id,
+        "name": current_user.name,
+        "email": current_user.email,
+        "role": current_user.role,
+        "company_name": company.company_name,
+    }
+
+
+# ============================================================
+# UPDATE INDUSTRY PROFILE
+# ============================================================
+
+@router.put("/profile")
+def update_industry_profile(
+    profile_data: IndustryProfileUpdate,
+    current_user: User = Depends(
+        require_role("INDUSTRY")
+    ),
+    db: Session = Depends(get_db),
+):
+
+    company = get_current_company(
+        current_user,
+        db,
+    )
+
+    # --------------------------------------------------------
+    # Update user name
+    # --------------------------------------------------------
+
+    if profile_data.name is not None:
+
+        name = profile_data.name.strip()
+
+        if not name:
+
+            raise HTTPException(
+                status_code=400,
+                detail="Name cannot be empty.",
+            )
+
+        current_user.name = name
+
+
+    # --------------------------------------------------------
+    # Update email
+    # --------------------------------------------------------
+
+    if profile_data.email is not None:
+
+        email = profile_data.email.strip().lower()
+
+        if not email:
+
+            raise HTTPException(
+                status_code=400,
+                detail="Email cannot be empty.",
+            )
+
+        existing_user = (
+            db.query(User)
+            .filter(
+                User.email == email,
+                User.id != current_user.id,
+            )
+            .first()
+        )
+
+        if existing_user:
+
+            raise HTTPException(
+                status_code=400,
+                detail="Email is already registered.",
+            )
+
+        current_user.email = email
+
+
+    # --------------------------------------------------------
+    # Update company name
+    # --------------------------------------------------------
+
+    if profile_data.company_name is not None:
+
+        company_name = (
+            profile_data.company_name.strip()
+        )
+
+        if not company_name:
+
+            raise HTTPException(
+                status_code=400,
+                detail="Company name cannot be empty.",
+            )
+
+        company.company_name = company_name
+
+
+    # --------------------------------------------------------
+    # Save changes
+    # --------------------------------------------------------
+
+    db.commit()
+
+    db.refresh(current_user)
+
+    db.refresh(company)
+
+
+    return {
+        "message": "Profile updated successfully",
+
+        "profile": {
+            "id": current_user.id,
+            "name": current_user.name,
+            "email": current_user.email,
+            "role": current_user.role,
+            "company_name": company.company_name,
         },
     }
