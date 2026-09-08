@@ -17,6 +17,7 @@ from ..models import (
 )
 from ..auth.dependencies import require_role
 from ..models.collaboration import Collaboration
+from ..models.academia import Academician
 
 router = APIRouter(
     prefix="/industry",
@@ -1306,7 +1307,7 @@ def get_shortlisted_candidates(
 
 
 @router.get("/collaborations")
-def get_industry_collaborations(
+def get_collaborations(
     current_user: User = Depends(
         require_role("INDUSTRY")
     ),
@@ -1314,7 +1315,7 @@ def get_industry_collaborations(
 ):
 
     # --------------------------------------------------------
-    # Verify company
+    # Get logged-in company
     # --------------------------------------------------------
 
     company = get_current_company(
@@ -1323,13 +1324,22 @@ def get_industry_collaborations(
     )
 
     # --------------------------------------------------------
-    # Get collaboration requests for this company
+    # Get collaborations for this company only
     # --------------------------------------------------------
 
     collaborations = (
-        db.query(Collaboration)
+        db.query(
+            Collaboration,
+            Academician,
+        )
+        .join(
+            Academician,
+            Collaboration.academician_id
+            == Academician.id,
+        )
         .filter(
-            Collaboration.company_id == company.id
+            Collaboration.company_id
+            == company.id
         )
         .order_by(
             Collaboration.id.desc()
@@ -1340,13 +1350,34 @@ def get_industry_collaborations(
     return [
         {
             "id": collaboration.id,
-            "company_id": collaboration.company_id,
-            "title": collaboration.title,
-            "description": collaboration.description,
-            "status": collaboration.status,
-            "created_at": collaboration.created_at,
+
+            "company_id":
+                collaboration.company_id,
+
+            "company":
+                company.company_name,
+
+            "academician_id":
+                academician.id,
+
+            "academic_institution":
+                academician.institution_name,
+
+            "title":
+                collaboration.title,
+
+            "description":
+                collaboration.description,
+
+            "status":
+                collaboration.status,
+
+            "created_at":
+                collaboration.created_at,
         }
-        for collaboration in collaborations
+
+        for collaboration, academician
+        in collaborations
     ]
 
 
@@ -1446,13 +1477,18 @@ def get_industry_profile(
         db,
     )
 
+    
     return {
         "id": current_user.id,
         "name": current_user.name,
         "email": current_user.email,
         "role": current_user.role,
         "company_name": company.company_name,
+        "industry": company.industry,
+        "location": company.location,
+        "description": company.description,
     }
+    
 
 
 # ============================================================

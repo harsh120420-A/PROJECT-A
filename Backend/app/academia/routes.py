@@ -1225,10 +1225,10 @@ def create_collaboration(
 ):
 
     # --------------------------------------------------------
-    # Verify academician
+    # Get the logged-in academician
     # --------------------------------------------------------
 
-    get_current_academician(
+    academician = get_current_academician(
         current_user,
         db,
     )
@@ -1246,7 +1246,6 @@ def create_collaboration(
     )
 
     if not company:
-
         raise HTTPException(
             status_code=404,
             detail="Company not found.",
@@ -1258,6 +1257,7 @@ def create_collaboration(
 
     collaboration = Collaboration(
         company_id=request.company_id,
+        academician_id=academician.id,
         title=request.title,
         description=request.description,
         status="Pending",
@@ -1271,10 +1271,10 @@ def create_collaboration(
 
     return {
         "message": "Collaboration created successfully",
-
         "collaboration": {
             "id": collaboration.id,
             "company_id": collaboration.company_id,
+            "academician_id": collaboration.academician_id,
             "title": collaboration.title,
             "description": collaboration.description,
             "status": collaboration.status,
@@ -2465,3 +2465,32 @@ def update_academia_profile(
             "designation": academician.designation,
         },
     }
+    
+
+@router.get("/companies")
+def get_companies(
+    current_user: User = Depends(
+        require_role("ACADEMIA")
+    ),
+    db: Session = Depends(get_db),
+):
+    get_current_academician(
+        current_user,
+        db,
+    )
+
+    companies = (
+        db.query(Company)
+        .order_by(Company.company_name.asc())
+        .all()
+    )
+
+    return [
+        {
+            "id": company.id,
+            "company_name": company.company_name,
+            "industry": company.industry,
+            "location": company.location,
+        }
+        for company in companies
+    ]

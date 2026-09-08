@@ -10,6 +10,218 @@ import {
 } from "lucide-react";
 
 
+function ResourceCard({
+  resource,
+  startLearning,
+  updateProgress,
+}) {
+
+  return (
+    <div className="bg-white border rounded-2xl p-6 hover:border-blue-300 transition">
+
+      <div className="flex justify-between gap-4">
+
+        <div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+
+            <p className="text-sm text-blue-600 font-medium">
+              {resource.skill}
+            </p>
+
+            {resource.recommendation === "High Priority" && (
+              <span className="px-2 py-1 bg-red-50 text-red-600 rounded-full text-xs font-medium">
+                High Priority
+              </span>
+            )}
+
+            {resource.recommendation === "Recommended" && (
+              <span className="px-2 py-1 bg-yellow-50 text-yellow-600 rounded-full text-xs font-medium">
+                Recommended
+              </span>
+            )}
+
+          </div>
+
+          <h3 className="text-xl font-semibold text-slate-900 mt-2">
+            {resource.title}
+          </h3>
+
+        </div>
+
+        {resource.status === "Completed" && (
+          <CheckCircle
+            size={22}
+            className="text-green-600 flex-shrink-0"
+          />
+        )}
+
+      </div>
+
+
+      <div className="mt-4 bg-slate-50 rounded-xl p-4">
+
+        <div className="flex justify-between">
+
+          <span className="text-sm text-slate-500">
+            Your current {resource.skill} score
+          </span>
+
+          <span className="font-semibold text-slate-900">
+            {resource.student_score}%
+          </span>
+
+        </div>
+
+        <div className="h-2 bg-slate-200 rounded-full mt-2">
+
+          <div
+            className="h-full bg-blue-500 rounded-full"
+            style={{
+              width: `${Math.min(
+                resource.student_score || 0,
+                100
+              )}%`,
+            }}
+          />
+
+        </div>
+
+      </div>
+
+
+      <p className="text-sm text-slate-500 mt-4">
+        {resource.description}
+      </p>
+
+
+      <div className="flex flex-wrap gap-4 mt-5 text-sm text-slate-500">
+
+        {resource.provider && (
+          <span>{resource.provider}</span>
+        )}
+
+        {resource.difficulty && (
+          <span className="px-2.5 py-1 bg-slate-100 rounded-full">
+            {resource.difficulty}
+          </span>
+        )}
+
+        {resource.duration && (
+          <span className="flex items-center gap-1">
+            <Clock size={15} />
+            {resource.duration}
+          </span>
+        )}
+
+      </div>
+
+
+      <div className="mt-6">
+
+        <div className="flex justify-between text-sm">
+
+          <span className="text-slate-500">
+            Progress
+          </span>
+
+          <span className="font-medium">
+            {resource.progress || 0}%
+          </span>
+
+        </div>
+
+        <div className="h-2 bg-slate-100 rounded-full mt-2">
+
+          <div
+            className="h-full bg-blue-600 rounded-full transition-all"
+            style={{
+              width: `${Math.min(
+                resource.progress || 0,
+                100
+              )}%`,
+            }}
+          />
+
+        </div>
+
+      </div>
+
+
+      <div className="mt-6 flex flex-wrap gap-3">
+
+        {resource.status !== "Completed" && (
+
+          <button
+            onClick={() => startLearning(resource)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+          >
+
+            <PlayCircle size={16} />
+
+            {resource.status === "In Progress"
+              ? "Continue Learning"
+              : "Start Learning"}
+
+          </button>
+
+        )}
+
+        {resource.url && (
+
+          <a
+            href={resource.url}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-2 px-4 py-2.5 border rounded-lg text-sm font-medium text-slate-700 hover:border-blue-300"
+          >
+
+            <ExternalLink size={16} />
+
+            Open Resource
+
+          </a>
+
+        )}
+
+      </div>
+
+
+      {resource.status === "In Progress" && (
+
+        <div className="mt-5 pt-5 border-t">
+
+          <p className="text-sm font-medium text-slate-700">
+            Update Progress
+          </p>
+
+          <div className="flex flex-wrap gap-2 mt-3">
+
+            {[25, 50, 75, 100].map((value) => (
+
+              <button
+                key={value}
+                onClick={() =>
+                  updateProgress(resource, value)
+                }
+                className="px-3 py-1.5 border rounded-lg text-xs hover:border-blue-400 hover:text-blue-600"
+              >
+                {value}%
+              </button>
+
+            ))}
+
+          </div>
+
+        </div>
+
+      )}
+
+    </div>
+  );
+}
+
+
 function Learning() {
 
   const [resources, setResources] = useState([]);
@@ -247,298 +459,289 @@ function Learning() {
 
 
   return (
+  <StudentLayout>
 
-    <StudentLayout>
+    <div className="p-8">
 
-      <div className="p-8">
+      {/* HEADER */}
 
-        {/* ==================================================
-            HEADER
-        ================================================== */}
+      <p className="text-sm text-blue-600 font-medium">
+        PERSONALIZED LEARNING
+      </p>
 
-        <p className="text-sm text-blue-600 font-medium">
-          LEARNING
-        </p>
+      <h1 className="text-3xl font-bold text-slate-900 mt-2">
+        Learning Programs
+      </h1>
 
-        <h1 className="text-3xl font-bold text-slate-900 mt-2">
-          Learning Programs
-        </h1>
-
-        <p className="text-slate-500 mt-2">
-          Learn the skills needed to close your skill gaps.
-        </p>
+      <p className="text-slate-500 mt-2">
+        Learning recommendations based on your current skill profile.
+      </p>
 
 
-        {/* ==================================================
-            EMPTY STATE
-        ================================================== */}
+      {/* EMPTY STATE */}
 
-        {resources.length === 0 ? (
+      {resources.length === 0 ? (
 
-          <div className="mt-8 bg-white border rounded-2xl p-10 text-center">
+        <div className="mt-8 bg-white border rounded-2xl p-10 text-center">
 
-            <BookOpen
-              size={40}
-              className="mx-auto text-slate-300"
-            />
+          <BookOpen
+            size={40}
+            className="mx-auto text-slate-300"
+          />
 
-            <h2 className="text-xl font-semibold mt-4">
-              No learning programs available
-            </h2>
+          <h2 className="text-xl font-semibold mt-4">
+            No learning programs available
+          </h2>
 
-            <p className="text-slate-500 mt-2">
-              Learning resources will appear here when they are available.
-            </p>
+          <p className="text-slate-500 mt-2">
+            Learning resources will appear here when they are available.
+          </p>
 
-          </div>
+        </div>
 
-        ) : (
+      ) : (
 
-          <div className="mt-8">
+        <div className="mt-8">
 
-            {/* ==================================================
-                SECTION HEADER
-            ================================================== */}
+          {/* SUMMARY */}
 
-            <div className="flex items-center gap-3 mb-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
 
-              <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+            <div className="bg-red-50 border border-red-100 rounded-xl p-5">
 
-                <BookOpen size={20} />
+              <p className="text-sm text-red-600 font-medium">
+                High Priority
+              </p>
 
-              </div>
+              <p className="text-2xl font-bold text-slate-900 mt-1">
+                {
+                  resources.filter(
+                    (resource) =>
+                      resource.recommendation === "High Priority"
+                  ).length
+                }
+              </p>
 
-              <div>
-
-                <h2 className="text-xl font-semibold">
-                  Recommended Learning Programs
-                </h2>
-
-                <p className="text-sm text-slate-500">
-                  Resources to help you strengthen your skills.
-                </p>
-
-              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Resources for your skill gaps
+              </p>
 
             </div>
 
 
-            {/* ==================================================
-                RESOURCE CARDS
-            ================================================== */}
+            <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-5">
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              <p className="text-sm text-yellow-600 font-medium">
+                Recommended
+              </p>
 
-              {resources.map(
-                (resource) => (
+              <p className="text-2xl font-bold text-slate-900 mt-1">
+                {
+                  resources.filter(
+                    (resource) =>
+                      resource.recommendation === "Recommended"
+                  ).length
+                }
+              </p>
 
-                  <div
-                    key={resource.id}
-                    className="bg-white border rounded-2xl p-6 hover:border-blue-300 transition"
-                  >
+              <p className="text-xs text-slate-500 mt-1">
+                Resources for developing skills
+              </p>
 
-                    {/* Header */}
+            </div>
 
-                    <div className="flex justify-between gap-4">
 
-                      <div>
+            <div className="bg-slate-50 border rounded-xl p-5">
 
-                        <p className="text-sm text-blue-600 font-medium">
-                          {resource.skill}
-                        </p>
+              <p className="text-sm text-slate-600 font-medium">
+                Total Resources
+              </p>
 
-                        <h3 className="text-xl font-semibold text-slate-900 mt-1">
-                          {resource.title}
-                        </h3>
+              <p className="text-2xl font-bold text-slate-900 mt-1">
+                {resources.length}
+              </p>
 
-                      </div>
-
-
-                      {resource.status === "Completed" && (
-
-                        <CheckCircle
-                          size={22}
-                          className="text-green-600 flex-shrink-0"
-                        />
-
-                      )}
-
-                    </div>
-
-
-                    {/* Description */}
-
-                    <p className="text-sm text-slate-500 mt-4">
-                      {resource.description}
-                    </p>
-
-
-                    {/* Details */}
-
-                    <div className="flex flex-wrap gap-4 mt-5 text-sm text-slate-500">
-
-                      {resource.provider && (
-
-                        <span>
-                          {resource.provider}
-                        </span>
-
-                      )}
-
-                      {resource.difficulty && (
-
-                        <span className="px-2.5 py-1 bg-slate-100 rounded-full">
-                          {resource.difficulty}
-                        </span>
-
-                      )}
-
-                      {resource.duration && (
-
-                        <span className="flex items-center gap-1">
-
-                          <Clock size={15} />
-
-                          {resource.duration}
-
-                        </span>
-
-                      )}
-
-                    </div>
-
-
-                    {/* Progress */}
-
-                    <div className="mt-6">
-
-                      <div className="flex justify-between text-sm">
-
-                        <span className="text-slate-500">
-                          Progress
-                        </span>
-
-                        <span className="font-medium">
-                          {resource.progress || 0}%
-                        </span>
-
-                      </div>
-
-
-                      <div className="h-2 bg-slate-100 rounded-full mt-2">
-
-                        <div
-                          className="h-full bg-blue-600 rounded-full transition-all"
-                          style={{
-                            width: `${Math.min(
-                              resource.progress || 0,
-                              100
-                            )}%`
-                          }}
-                        />
-
-                      </div>
-
-                    </div>
-
-
-                    {/* Actions */}
-
-                    <div className="mt-6 flex flex-wrap gap-3">
-
-                      {resource.status !== "Completed" && (
-
-                        <button
-                          onClick={() =>
-                            startLearning(resource)
-                          }
-                          className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
-                        >
-
-                          <PlayCircle size={16} />
-
-                          {resource.status === "In Progress"
-                            ? "Continue Learning"
-                            : "Start Learning"}
-
-                        </button>
-
-                      )}
-
-
-                      {resource.url && (
-
-                        <a
-                          href={resource.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center gap-2 px-4 py-2.5 border rounded-lg text-sm font-medium text-slate-700 hover:border-blue-300"
-                        >
-
-                          <ExternalLink size={16} />
-
-                          Open Resource
-
-                        </a>
-
-                      )}
-
-                    </div>
-
-
-                    {/* Progress Controls */}
-
-                    {resource.status === "In Progress" && (
-
-                      <div className="mt-5 pt-5 border-t">
-
-                        <p className="text-sm font-medium text-slate-700">
-                          Update Progress
-                        </p>
-
-                        <div className="flex flex-wrap gap-2 mt-3">
-
-                          {[25, 50, 75, 100].map(
-                            (value) => (
-
-                              <button
-                                key={value}
-                                onClick={() =>
-                                  updateProgress(
-                                    resource,
-                                    value
-                                  )
-                                }
-                                className="px-3 py-1.5 border rounded-lg text-xs hover:border-blue-400 hover:text-blue-600"
-                              >
-                                {value}%
-                              </button>
-
-                            )
-                          )}
-
-                        </div>
-
-                      </div>
-
-                    )}
-
-                  </div>
-
-                )
-              )}
+              <p className="text-xs text-slate-500 mt-1">
+                Available in the learning catalog
+              </p>
 
             </div>
 
           </div>
 
-        )}
 
-      </div>
+          {/* HIGH PRIORITY */}
 
-    </StudentLayout>
+          {resources.some(
+            (resource) =>
+              resource.recommendation === "High Priority"
+          ) && (
 
-  );
+            <section className="mb-10">
+
+              <div className="flex items-center gap-3 mb-5">
+
+                <div className="p-3 bg-red-50 text-red-600 rounded-xl">
+                  <BookOpen size={20} />
+                </div>
+
+                <div>
+
+                  <h2 className="text-xl font-semibold">
+                    Recommended for Your Skill Gaps
+                  </h2>
+
+                  <p className="text-sm text-slate-500">
+                    Start with these resources to improve your weakest skills.
+                  </p>
+
+                </div>
+
+              </div>
+
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+                {resources
+                  .filter(
+                    (resource) =>
+                      resource.recommendation === "High Priority"
+                  )
+                  .map((resource) => (
+
+                    <ResourceCard
+                      key={resource.id}
+                      resource={resource}
+                      startLearning={startLearning}
+                      updateProgress={updateProgress}
+                    />
+
+                  ))}
+
+              </div>
+
+            </section>
+
+          )}
+
+
+          {/* DEVELOPING */}
+
+          {resources.some(
+            (resource) =>
+              resource.recommendation === "Recommended"
+          ) && (
+
+            <section className="mb-10">
+
+              <div className="flex items-center gap-3 mb-5">
+
+                <div className="p-3 bg-yellow-50 text-yellow-600 rounded-xl">
+                  <BookOpen size={20} />
+                </div>
+
+                <div>
+
+                  <h2 className="text-xl font-semibold">
+                    Strengthen Your Developing Skills
+                  </h2>
+
+                  <p className="text-sm text-slate-500">
+                    These resources can help increase your readiness.
+                  </p>
+
+                </div>
+
+              </div>
+
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+                {resources
+                  .filter(
+                    (resource) =>
+                      resource.recommendation === "Recommended"
+                  )
+                  .map((resource) => (
+
+                    <ResourceCard
+                      key={resource.id}
+                      resource={resource}
+                      startLearning={startLearning}
+                      updateProgress={updateProgress}
+                    />
+
+                  ))}
+
+              </div>
+
+            </section>
+
+          )}
+
+
+          {/* OPTIONAL */}
+
+          {resources.some(
+            (resource) =>
+              resource.recommendation === "Optional"
+          ) && (
+
+            <section>
+
+              <div className="flex items-center gap-3 mb-5">
+
+                <div className="p-3 bg-slate-100 text-slate-600 rounded-xl">
+                  <BookOpen size={20} />
+                </div>
+
+                <div>
+
+                  <h2 className="text-xl font-semibold">
+                    Explore Other Resources
+                  </h2>
+
+                  <p className="text-sm text-slate-500">
+                    Additional resources you may find useful.
+                  </p>
+
+                </div>
+
+              </div>
+
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+                {resources
+                  .filter(
+                    (resource) =>
+                      resource.recommendation === "Optional"
+                  )
+                  .map((resource) => (
+
+                    <ResourceCard
+                      key={resource.id}
+                      resource={resource}
+                      startLearning={startLearning}
+                      updateProgress={updateProgress}
+                    />
+
+                  ))}
+
+              </div>
+
+            </section>
+
+          )}
+
+        </div>
+
+      )}
+
+    </div>
+
+  </StudentLayout>
+);
 
 }
 

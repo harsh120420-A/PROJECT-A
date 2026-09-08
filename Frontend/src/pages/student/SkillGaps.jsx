@@ -3,125 +3,65 @@ import StudentLayout from "../../layouts/StudentLayout";
 import { apiGet } from "../../services/api";
 
 function SkillGaps() {
-
-  const [skills, setSkills] = useState([]);
+  const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  async function loadSkillGaps() {
+    try {
+      setLoading(true);
+      setError("");
 
-  // ==========================================================
-  // LOAD SKILLS FROM BACKEND
-  // ==========================================================
+      const data = await apiGet("/student/skill-gaps");
+
+      setAnalysis(data);
+    } catch (err) {
+      console.error("Skill gap analysis error:", err);
+      setError(
+        err.message || "Unable to load your skill gap analysis."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-
-    async function loadSkills() {
-
-      try {
-
-        setLoading(true);
-        setError("");
-
-        const data = await apiGet(
-          "/student/skills"
-        );
-
-        setSkills(
-          Array.isArray(data)
-            ? data
-            : []
-        );
-
-      } catch (err) {
-
-        console.error(
-          "Skill gaps error:",
-          err
-        );
-
-        setError(
-          err.message ||
-          "Unable to load your skill analysis."
-        );
-
-      } finally {
-
-        setLoading(false);
-
-      }
-    }
-
-    loadSkills();
-
+    loadSkillGaps();
   }, []);
 
+  if (loading) {
+    return (
+      <StudentLayout>
+        <div className="p-8">
+          <p className="text-sm text-blue-600 font-medium">
+            SKILL INTELLIGENCE
+          </p>
 
-  // ==========================================================
-  // CLASSIFY SKILLS
-  // ==========================================================
+          <h1 className="text-3xl font-bold text-slate-900 mt-2">
+            Skill Gap Analysis
+          </h1>
 
-  const strengths = skills.filter(
-    (skill) => (skill.score ?? 0) >= 70
-  );
+          <p className="text-slate-500 mt-2">
+            Loading your skill intelligence...
+          </p>
+        </div>
+      </StudentLayout>
+    );
+  }
 
-  const developing = skills.filter(
-    (skill) =>
-      (skill.score ?? 0) >= 50 &&
-      (skill.score ?? 0) < 70
-  );
+  if (error) {
+    return (
+      <StudentLayout>
+        <div className="p-8">
+          <p className="text-sm text-blue-600 font-medium">
+            SKILL INTELLIGENCE
+          </p>
 
-  const gaps = skills.filter(
-    (skill) => (skill.score ?? 0) < 50
-  );
-
-
-  // ==========================================================
-  // PAGE
-  // ==========================================================
-
-  return (
-    <StudentLayout>
-
-      <div className="p-8">
-
-        <p className="text-sm text-blue-600 font-medium">
-          SKILL ANALYSIS
-        </p>
-
-        <h1 className="text-3xl font-bold text-slate-900 mt-2">
-          Skill Gap Analysis
-        </h1>
-
-        <p className="text-slate-500 mt-2">
-          Understand your strengths and identify the skills you should improve.
-        </p>
-
-
-        {/* ==================================================
-            LOADING
-        ================================================== */}
-
-        {loading && (
-
-          <div className="mt-8">
-
-            <p className="text-slate-500">
-              Loading your skill analysis...
-            </p>
-
-          </div>
-
-        )}
-
-
-        {/* ==================================================
-            ERROR
-        ================================================== */}
-
-        {!loading && error && (
+          <h1 className="text-3xl font-bold text-slate-900 mt-2">
+            Skill Gap Analysis
+          </h1>
 
           <div className="mt-8 bg-red-50 border border-red-200 rounded-xl p-5">
-
             <p className="text-red-600 font-medium">
               Unable to load skill analysis
             </p>
@@ -130,286 +70,397 @@ function SkillGaps() {
               {error}
             </p>
 
+            <button
+              onClick={loadSkillGaps}
+              className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg text-sm"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      </StudentLayout>
+    );
+  }
+
+  const summary = analysis?.summary || {};
+  const strengths = analysis?.strengths || [];
+  const developing = analysis?.developing || [];
+  const gaps = analysis?.gaps || [];
+
+  return (
+    <StudentLayout>
+      <div className="p-8">
+
+        {/* -------------------------------------------------- */}
+        {/* HEADER */}
+        {/* -------------------------------------------------- */}
+
+        <p className="text-sm text-blue-600 font-medium">
+          SKILL INTELLIGENCE
+        </p>
+
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 mt-2">
+              Skill Gap Analysis
+            </h1>
+
+            <p className="text-slate-500 mt-2">
+              Understand your strengths, development areas, and
+              industry-relevant skill gaps.
+            </p>
           </div>
 
-        )}
+          <button
+            onClick={loadSkillGaps}
+            className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm hover:bg-slate-800"
+          >
+            Refresh Analysis
+          </button>
+        </div>
 
+        {/* -------------------------------------------------- */}
+        {/* READINESS */}
+        {/* -------------------------------------------------- */}
 
-        {/* ==================================================
-            CONTENT
-        ================================================== */}
+        <div className="mt-8 bg-white border rounded-2xl p-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
 
-        {!loading && !error && (
+            <div>
+              <p className="text-sm text-slate-500">
+                Overall Readiness
+              </p>
 
-          <>
+              <p className="text-4xl font-bold text-slate-900 mt-2">
+                {analysis?.student?.readiness ?? 0}%
+              </p>
 
-            {/* Summary */}
-
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-5">
-
-              <div className="bg-white border rounded-2xl p-6">
-
-                <p className="text-sm text-slate-500">
-                  Strong Skills
-                </p>
-
-                <p className="text-3xl font-bold text-green-600 mt-2">
-                  {strengths.length}
-                </p>
-
-              </div>
-
-
-              <div className="bg-white border rounded-2xl p-6">
-
-                <p className="text-sm text-slate-500">
-                  Developing
-                </p>
-
-                <p className="text-3xl font-bold text-yellow-500 mt-2">
-                  {developing.length}
-                </p>
-
-              </div>
-
-
-              <div className="bg-white border rounded-2xl p-6">
-
-                <p className="text-sm text-slate-500">
-                  Skill Gaps
-                </p>
-
-                <p className="text-3xl font-bold text-red-500 mt-2">
-                  {gaps.length}
-                </p>
-
-              </div>
-
+              <p className="text-sm text-slate-500 mt-1">
+                Based on your current skill assessment
+              </p>
             </div>
 
+            <div className="w-full md:w-1/2">
+              <div className="flex justify-between text-sm mb-2">
+                <span className="text-slate-500">
+                  Skill readiness
+                </span>
 
-            {/* ==================================================
-                NO SKILLS
-            ================================================== */}
-
-            {skills.length === 0 && (
-
-              <div className="mt-10 bg-white border rounded-2xl p-6">
-
-                <p className="font-medium text-slate-800">
-                  No skill data available yet.
-                </p>
-
-                <p className="text-sm text-slate-500 mt-2">
-                  Complete the assessment to build your skill profile.
-                </p>
-
+                <span className="font-medium">
+                  {analysis?.student?.readiness ?? 0}%
+                </span>
               </div>
 
-            )}
+              <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-600 rounded-full"
+                  style={{
+                    width: `${analysis?.student?.readiness ?? 0}%`,
+                  }}
+                />
+              </div>
+            </div>
 
+          </div>
+        </div>
 
-            {/* ==================================================
-                STRENGTHS
-            ================================================== */}
+        {/* -------------------------------------------------- */}
+        {/* SUMMARY CARDS */}
+        {/* -------------------------------------------------- */}
 
-            {strengths.length > 0 && (
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-5">
 
-              <section className="mt-10">
+          <div className="bg-white border rounded-2xl p-6">
+            <p className="text-sm text-slate-500">
+              Strong Skills
+            </p>
 
-                <h2 className="text-xl font-semibold">
-                  Your Strengths
-                </h2>
+            <p className="text-3xl font-bold text-green-600 mt-2">
+              {summary.strong ?? 0}
+            </p>
 
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <p className="text-sm text-slate-500 mt-1">
+              Skills above 70%
+            </p>
+          </div>
 
-                  {strengths.map((skill) => (
+          <div className="bg-white border rounded-2xl p-6">
+            <p className="text-sm text-slate-500">
+              Developing
+            </p>
 
-                    <div
-                      key={skill.id}
-                      className="bg-white border rounded-xl p-5"
-                    >
+            <p className="text-3xl font-bold text-yellow-500 mt-2">
+              {summary.developing ?? 0}
+            </p>
 
-                      <div className="flex justify-between">
+            <p className="text-sm text-slate-500 mt-1">
+              Skills between 50–69%
+            </p>
+          </div>
 
-                        <span className="font-medium">
-                          {skill.name}
-                        </span>
+          <div className="bg-white border rounded-2xl p-6">
+            <p className="text-sm text-slate-500">
+              Skill Gaps
+            </p>
 
-                        <span className="font-semibold text-green-600">
-                          {skill.score ?? 0}%
-                        </span>
+            <p className="text-3xl font-bold text-red-500 mt-2">
+              {summary.gaps ?? 0}
+            </p>
 
-                      </div>
+            <p className="text-sm text-slate-500 mt-1">
+              Skills below 50%
+            </p>
+          </div>
 
+        </div>
 
-                      <div className="mt-3 h-2 bg-slate-100 rounded-full">
+        {/* -------------------------------------------------- */}
+        {/* STRENGTHS */}
+        {/* -------------------------------------------------- */}
 
-                        <div
-                          className="h-full bg-green-500 rounded-full"
-                          style={{
-                            width: `${skill.score ?? 0}%`,
-                          }}
-                        />
+        <section className="mt-10">
 
-                      </div>
+          <div>
+            <h2 className="text-xl font-semibold text-slate-900">
+              Your Strengths
+            </h2>
 
+            <p className="text-sm text-slate-500 mt-1">
+              Skills where you currently demonstrate strong
+              proficiency.
+            </p>
+          </div>
+
+          {strengths.length === 0 ? (
+            <div className="mt-4 bg-white border rounded-xl p-6">
+              <p className="text-slate-500">
+                No strong skills identified yet.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+
+              {strengths.map((skill) => (
+                <div
+                  key={skill.id}
+                  className="bg-white border rounded-xl p-5"
+                >
+
+                  <div className="flex justify-between items-start">
+
+                    <div>
+                      <span className="font-medium text-slate-900">
+                        {skill.name}
+                      </span>
+
+                      <p className="text-sm text-slate-500 mt-1">
+                        {skill.category}
+                      </p>
                     </div>
 
-                  ))}
+                    <span className="font-semibold text-green-600">
+                      {skill.score}%
+                    </span>
+
+                  </div>
+
+                  <div className="mt-4 h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-green-500 rounded-full"
+                      style={{
+                        width: `${skill.score}%`,
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex justify-between mt-3 text-xs text-slate-500">
+                    <span>
+                      Industry demand: {skill.industry_demand}
+                    </span>
+
+                    <span className="text-green-600 font-medium">
+                      Strong
+                    </span>
+                  </div>
 
                 </div>
+              ))}
 
-              </section>
+            </div>
+          )}
 
-            )}
+        </section>
 
+        {/* -------------------------------------------------- */}
+        {/* DEVELOPING */}
+        {/* -------------------------------------------------- */}
 
-            {/* ==================================================
-                DEVELOPING
-            ================================================== */}
+        <section className="mt-10">
 
-            {developing.length > 0 && (
+          <div>
+            <h2 className="text-xl font-semibold text-slate-900">
+              Skills to Develop
+            </h2>
 
-              <section className="mt-10">
+            <p className="text-sm text-slate-500 mt-1">
+              These skills have room for improvement and can
+              increase your readiness.
+            </p>
+          </div>
 
-                <h2 className="text-xl font-semibold">
-                  Skills to Develop
-                </h2>
+          {developing.length === 0 ? (
+            <div className="mt-4 bg-white border rounded-xl p-6">
+              <p className="text-slate-500">
+                No developing skills identified.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
 
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {developing.map((skill) => (
+                <div
+                  key={skill.id}
+                  className="bg-white border rounded-xl p-5"
+                >
 
-                  {developing.map((skill) => (
+                  <div className="flex justify-between items-start">
 
-                    <div
-                      key={skill.id}
-                      className="bg-white border rounded-xl p-5"
-                    >
+                    <div>
+                      <span className="font-medium text-slate-900">
+                        {skill.name}
+                      </span>
 
-                      <div className="flex justify-between">
-
-                        <span className="font-medium">
-                          {skill.name}
-                        </span>
-
-                        <span className="font-semibold text-yellow-500">
-                          {skill.score ?? 0}%
-                        </span>
-
-                      </div>
-
-
-                      <div className="mt-3 h-2 bg-slate-100 rounded-full">
-
-                        <div
-                          className="h-full bg-yellow-400 rounded-full"
-                          style={{
-                            width: `${skill.score ?? 0}%`,
-                          }}
-                        />
-
-                      </div>
-
+                      <p className="text-sm text-slate-500 mt-1">
+                        {skill.category}
+                      </p>
                     </div>
 
-                  ))}
+                    <span className="font-semibold text-yellow-500">
+                      {skill.score}%
+                    </span>
 
-                </div>
+                  </div>
 
-              </section>
-
-            )}
-
-
-            {/* ==================================================
-                GAPS
-            ================================================== */}
-
-            <section className="mt-10">
-
-              <h2 className="text-xl font-semibold">
-                Priority Skill Gaps
-              </h2>
-
-
-              {gaps.length === 0 ? (
-
-                <div className="mt-4 bg-white border rounded-xl p-6">
-
-                  <p className="text-green-600 font-medium">
-                    Excellent!
-                  </p>
-
-                  <p className="text-slate-500 mt-1">
-                    You currently don't have any critical skill gaps.
-                  </p>
-
-                </div>
-
-              ) : (
-
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-
-                  {gaps.map((skill) => (
-
+                  <div className="mt-4 h-2 bg-slate-100 rounded-full overflow-hidden">
                     <div
-                      key={skill.id}
-                      className="bg-white border border-red-100 rounded-xl p-5"
-                    >
+                      className="h-full bg-yellow-400 rounded-full"
+                      style={{
+                        width: `${skill.score}%`,
+                      }}
+                    />
+                  </div>
 
-                      <div className="flex justify-between">
+                  <div className="flex justify-between mt-3 text-xs text-slate-500">
+                    <span>
+                      Industry demand: {skill.industry_demand}
+                    </span>
 
-                        <div>
+                    <span className="text-yellow-600 font-medium">
+                      Developing
+                    </span>
+                  </div>
 
-                          <span className="font-medium">
-                            {skill.name}
-                          </span>
+                </div>
+              ))}
 
-                          <p className="text-sm text-slate-500 mt-1">
-                            {skill.category}
-                          </p>
+            </div>
+          )}
 
-                        </div>
+        </section>
 
-                        <span className="font-semibold text-red-500">
-                          {skill.score ?? 0}%
-                        </span>
+        {/* -------------------------------------------------- */}
+        {/* PRIORITY GAPS */}
+        {/* -------------------------------------------------- */}
 
-                      </div>
+        <section className="mt-10">
 
+          <div>
+            <h2 className="text-xl font-semibold text-slate-900">
+              Priority Skill Gaps
+            </h2>
 
-                      <div className="mt-3 h-2 bg-slate-100 rounded-full">
+            <p className="text-sm text-slate-500 mt-1">
+              Skills that currently need improvement. Industry
+              demand is shown to help you prioritize.
+            </p>
+          </div>
 
-                        <div
-                          className="h-full bg-red-400 rounded-full"
-                          style={{
-                            width: `${skill.score ?? 0}%`,
-                          }}
-                        />
+          {gaps.length === 0 ? (
+            <div className="mt-4 bg-white border rounded-xl p-6">
+              <p className="text-green-600 font-medium">
+                Excellent!
+              </p>
 
-                      </div>
+              <p className="text-slate-500 mt-1">
+                You currently don't have any critical skill gaps.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
 
+              {gaps.map((skill) => (
+                <div
+                  key={skill.id}
+                  className="bg-white border border-red-100 rounded-xl p-5"
+                >
 
-                      <p className="text-sm text-slate-500 mt-3">
-                        Recommended priority for improvement.
+                  <div className="flex justify-between items-start">
+
+                    <div>
+                      <span className="font-medium text-slate-900">
+                        {skill.name}
+                      </span>
+
+                      <p className="text-sm text-slate-500 mt-1">
+                        {skill.category}
+                      </p>
+                    </div>
+
+                    <span className="font-semibold text-red-500">
+                      {skill.score}%
+                    </span>
+
+                  </div>
+
+                  <div className="mt-4 h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-red-400 rounded-full"
+                      style={{
+                        width: `${skill.score}%`,
+                      }}
+                    />
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between">
+
+                    <div>
+                      <p className="text-xs text-slate-500">
+                        Industry demand
                       </p>
 
+                      <p className="font-semibold text-slate-800">
+                        {skill.industry_demand} active{" "}
+                        {skill.industry_demand === 1
+                          ? "opportunity"
+                          : "opportunities"}
+                      </p>
                     </div>
 
-                  ))}
+                    <span className="px-3 py-1 rounded-full bg-red-50 text-red-600 text-xs font-medium">
+                      Needs Improvement
+                    </span>
+
+                  </div>
 
                 </div>
+              ))}
 
-              )}
+            </div>
+          )}
 
-            </section>
-
-          </>
-
-        )}
+        </section>
 
       </div>
-
     </StudentLayout>
   );
 }

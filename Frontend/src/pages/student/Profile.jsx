@@ -1,25 +1,55 @@
 import { useEffect, useState } from "react";
 import StudentLayout from "../../layouts/StudentLayout";
-import { defaultProfile } from "../../data/profile";
-import {
-  getProfile,
-  saveProfile
-} from "../../utils/storage";
+import { apiGet, apiPut } from "../../services/api";
 
 function Profile() {
-  const [profile, setProfile] = useState(defaultProfile);
-  const [saved, setSaved] = useState(false);
+  const [profile, setProfile] = useState({
+  name: "",
+  email: "",
+  phone: "",
+  college: "",
+  degree: "",
+  branch: "",
+  graduationYear: "",
+  careerGoal: "",
+  preferredLocation: ""
+});
+
+const [loading, setLoading] = useState(true);
+const [error, setError] = useState("");
+const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    const storedProfile = getProfile();
+  async function loadProfile() {
+    try {
+      setLoading(true);
+      setError("");
 
-    if (storedProfile) {
+      const data = await apiGet("/student/profile");
+
       setProfile({
-        ...defaultProfile,
-        ...storedProfile
+        name: data.name || "",
+        email: data.email || "",
+        phone: data.phone || "",
+        college: data.college || "",
+        degree: data.degree || "",
+        branch: data.branch || "",
+        graduationYear: data.graduation_year
+          ? String(data.graduation_year)
+          : "",
+        careerGoal: data.career_goal || "",
+        preferredLocation: data.preferred_location || ""
       });
+    } catch (err) {
+      console.error("Profile loading error:", err);
+      setError(err.message || "Unable to load profile.");
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  }
+
+  loadProfile();
+}, []);
 
   function handleChange(e) {
     const { name, value } = e.target;
@@ -32,12 +62,48 @@ function Profile() {
     setSaved(false);
   }
 
-  function handleSubmit(e) {
-    e.preventDefault();
+  async function handleSubmit(e) {
+  e.preventDefault();
 
-    saveProfile(profile);
+  try {
+    setSaved(false);
+    setError("");
+
+    const data = await apiPut("/student/profile", {
+      name: profile.name.trim(),
+      email: profile.email.trim(),
+      phone: profile.phone.trim() || null,
+      college: profile.college.trim() || null,
+      degree: profile.degree || null,
+      branch: profile.branch.trim() || null,
+      graduation_year: profile.graduationYear
+        ? Number(profile.graduationYear)
+        : null,
+      career_goal: profile.careerGoal || null,
+      preferred_location:
+        profile.preferredLocation.trim() || null
+    });
+
+    setProfile({
+      name: data.name || "",
+      email: data.email || "",
+      phone: data.phone || "",
+      college: data.college || "",
+      degree: data.degree || "",
+      branch: data.branch || "",
+      graduationYear: data.graduation_year
+        ? String(data.graduation_year)
+        : "",
+      careerGoal: data.career_goal || "",
+      preferredLocation: data.preferred_location || ""
+    });
+
     setSaved(true);
+  } catch (err) {
+    console.error("Profile save error:", err);
+    setError(err.message || "Unable to save profile.");
   }
+}
 
   const requiredFields = [
     "name",
@@ -58,6 +124,52 @@ function Profile() {
   const completionPercentage = Math.round(
     (completedFields / requiredFields.length) * 100
   );
+
+  if (loading) {
+  return (
+    <StudentLayout>
+      <div className="p-8">
+        <p className="text-sm text-blue-600 font-medium">
+          PROFILE
+        </p>
+
+        <h1 className="text-3xl font-bold text-slate-900 mt-2">
+          Student Profile
+        </h1>
+
+        <p className="text-slate-500 mt-2">
+          Loading your profile...
+        </p>
+      </div>
+    </StudentLayout>
+  );
+}
+
+if (error && !profile.name) {
+  return (
+    <StudentLayout>
+      <div className="p-8">
+        <p className="text-sm text-blue-600 font-medium">
+          PROFILE
+        </p>
+
+        <h1 className="text-3xl font-bold text-slate-900 mt-2">
+          Student Profile
+        </h1>
+
+        <div className="mt-8 bg-red-50 border border-red-200 rounded-xl p-6">
+          <p className="font-medium text-red-600">
+            Unable to load profile
+          </p>
+
+          <p className="text-sm text-red-500 mt-1">
+            {error}
+          </p>
+        </div>
+      </div>
+    </StudentLayout>
+  );
+}
 
   return (
     <StudentLayout>
@@ -469,7 +581,11 @@ function Profile() {
           {/* Save */}
 
           <div className="flex items-center justify-end gap-4">
-
+                  {error && (
+  <p className="text-sm text-red-600 font-medium">
+    {error}
+  </p>
+)}
             {saved && (
               <p className="text-sm text-green-600 font-medium">
                 Profile saved successfully.

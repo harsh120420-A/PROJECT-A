@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
 import StudentLayout from "../../layouts/StudentLayout";
 
-import { student } from "../../data/student";
-import { skills as defaultSkills } from "../../data/skills";
-
 import { apiGet, apiPost, apiDelete } from "../../services/api";
 
 import {
@@ -20,7 +17,7 @@ function Portfolio() {
 
   const [profile, setProfile] = useState(null);
 
-  const [skills, setSkills] = useState(defaultSkills);
+  const [skills, setSkills] = useState([]);
 
   const [applications, setApplications] = useState([]);
 
@@ -81,18 +78,18 @@ function Portfolio() {
         setError("");
 
         const [
-          portfolioData,
-          skillsData,
-          applicationsData
-        ] = await Promise.all([
+  profileData,
+  portfolioData,
+  skillsData,
+  applicationsData
+] = await Promise.all([
+  apiGet("/student/profile"),
+  apiGet("/student/portfolio"),
+  apiGet("/student/skills"),
+  apiGet("/student/applications")
+]);
 
-          apiGet("/student/portfolio"),
-
-          apiGet("/student/skills"),
-
-          apiGet("/student/applications")
-
-        ]);
+setProfile(profileData);
 
 
         // ----------------------------------------------------
@@ -588,20 +585,24 @@ function Portfolio() {
   // ==========================================================
 
   const displayName =
-    profile?.name ||
-    student.name;
+  profile?.name ||
+  "Student";
 
-  const careerGoal =
-    profile?.careerGoal ||
-    student.careerGoal;
+const careerGoal =
+  profile?.career_goal ||
+  "Career goal not specified";
 
-  const degree =
-    profile?.degree ||
-    "Degree not specified";
+const degree =
+  profile?.degree ||
+  "Degree not specified";
 
-  const branch =
-    profile?.branch ||
-    "Specialization not specified";
+const branch =
+  profile?.branch ||
+  "Specialization not specified";
+
+const readiness =
+  profile?.readiness ??
+  0;
 
 
   // ==========================================================
@@ -735,7 +736,7 @@ function Portfolio() {
               </p>
 
               <p className="text-4xl font-bold text-blue-600 mt-1">
-                {student.readiness}%
+                {readiness}%
               </p>
 
             </div>

@@ -27,6 +27,12 @@ class Collaboration(Base):
         nullable=False
     )
 
+    academician_id = Column(
+        Integer,
+        ForeignKey("academicians.id"),
+        nullable=False
+    )
+
     title = Column(
         String(200),
         nullable=False
@@ -39,7 +45,7 @@ class Collaboration(Base):
 
     status = Column(
         String(50),
-        default="Active"
+        default="Pending"
     )
 
     created_at = Column(
