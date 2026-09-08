@@ -1,24 +1,30 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 
 const navItems = [
   {
     section: "MAIN",
-    items: [
-      { label: "Dashboard", path: "/academia/dashboard", icon: "▣" },
-    ],
+    items: [{ label: "Dashboard", path: "/academia/dashboard", icon: "▣" }],
   },
   {
     section: "STUDENT INTELLIGENCE",
     items: [
       { label: "Students", path: "/academia/students", icon: "♙" },
-      { label: "Skill Analytics", path: "/academia/skill-analytics", icon: "◈" },
+      {
+        label: "Skill Analytics",
+        path: "/academia/skill-analytics",
+        icon: "◈",
+      },
       { label: "Skill Gaps", path: "/academia/skill-gaps", icon: "△" },
     ],
   },
   {
     section: "INDUSTRY CONNECTION",
     items: [
-      { label: "Industry Demand", path: "/academia/industry-demand", icon: "◉" },
+      {
+        label: "Industry Demand",
+        path: "/academia/industry-demand",
+        icon: "◉",
+      },
       { label: "Opportunities", path: "/academia/opportunities", icon: "◆" },
       { label: "Collaborations", path: "/academia/collaborations", icon: "⇄" },
     ],
@@ -26,13 +32,24 @@ const navItems = [
   {
     section: "INSTITUTION",
     items: [
-      { label: "Placement Analytics", path: "/academia/placement-analytics", icon: "▥" },
+      {
+        label: "Placement Analytics",
+        path: "/academia/placement-analytics",
+        icon: "▥",
+      },
       { label: "Reports", path: "/academia/reports", icon: "▤" },
     ],
   },
 ];
 
 function AcademiaSidebar() {
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.removeItem("accessToken");
+    navigate("/login");
+  };
+
   return (
     <aside className="academia-sidebar">
       <div className="academia-brand">
@@ -47,9 +64,7 @@ function AcademiaSidebar() {
       <nav className="academia-nav">
         {navItems.map((section) => (
           <div className="academia-nav-section" key={section.section}>
-            <p className="academia-section-title">
-              {section.section}
-            </p>
+            <p className="academia-section-title">{section.section}</p>
 
             {section.items.map((item) => (
               <NavLink
@@ -59,9 +74,7 @@ function AcademiaSidebar() {
                   `academia-nav-link ${isActive ? "active" : ""}`
                 }
               >
-                <span className="academia-nav-icon">
-                  {item.icon}
-                </span>
+                <span className="academia-nav-icon">{item.icon}</span>
 
                 <span>{item.label}</span>
               </NavLink>
@@ -81,7 +94,7 @@ function AcademiaSidebar() {
           <span>Profile</span>
         </NavLink>
 
-        <button className="academia-logout">
+        <button onClick={handleLogout} className="academia-logout">
           <span className="academia-nav-icon">↪</span>
           <span>Logout</span>
         </button>

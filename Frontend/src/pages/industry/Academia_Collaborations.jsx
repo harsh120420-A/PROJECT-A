@@ -707,8 +707,9 @@ function AcademiaCollaborations() {
                   </p>
 
                   <p className="text-sm font-semibold text-slate-800 mt-1">
-                    Academia
-                  </p>
+  {selectedCollaboration.academic_institution ||
+    "Unknown Institution"}
+</p>
 
                 </div>
 

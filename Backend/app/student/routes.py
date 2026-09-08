@@ -301,7 +301,200 @@ def get_skill_catalog(
         for skill in skills
     ]
 
+# ============================================================
+# GET STUDENT SKILL GAP ANALYSIS
+# ============================================================
 
+@router.get("/skill-gaps")
+def get_student_skill_gaps(
+    current_user: User = Depends(
+        require_role("STUDENT")
+    ),
+    db: Session = Depends(get_db),
+):
+
+    # --------------------------------------------------------
+    # Find student
+    # --------------------------------------------------------
+
+    student = (
+        db.query(Student)
+        .filter(
+            Student.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if not student:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Student profile not found.",
+        )
+
+    # --------------------------------------------------------
+    # Get student's skills
+    # --------------------------------------------------------
+
+    student_skills = (
+        db.query(
+            Skill,
+            StudentSkill,
+        )
+        .join(
+            StudentSkill,
+            StudentSkill.skill_id == Skill.id,
+        )
+        .filter(
+            StudentSkill.student_id == student.id
+        )
+        .all()
+    )
+
+    student_skill_map = {
+        skill.id: student_skill.score
+        for skill, student_skill in student_skills
+    }
+
+    # --------------------------------------------------------
+    # Get active opportunities
+    # --------------------------------------------------------
+
+    active_opportunities = (
+        db.query(Opportunity)
+        .filter(
+            Opportunity.status == "Active"
+        )
+        .all()
+    )
+
+    # --------------------------------------------------------
+    # Count industry demand for each skill
+    # --------------------------------------------------------
+
+    demand_map = {}
+
+    for opportunity in active_opportunities:
+
+        required_skills = (
+            db.query(OpportunitySkill)
+            .filter(
+                OpportunitySkill.opportunity_id
+                == opportunity.id
+            )
+            .all()
+        )
+
+        for opportunity_skill in required_skills:
+
+            skill_id = opportunity_skill.skill_id
+
+            demand_map[skill_id] = (
+                demand_map.get(skill_id, 0) + 1
+            )
+
+    # --------------------------------------------------------
+    # Get all skills from common catalog
+    # --------------------------------------------------------
+
+    all_skills = (
+        db.query(Skill)
+        .order_by(Skill.name.asc())
+        .all()
+    )
+
+    # --------------------------------------------------------
+    # Build analysis
+    # --------------------------------------------------------
+
+    strengths = []
+    developing = []
+    gaps = []
+
+    for skill in all_skills:
+
+        score = student_skill_map.get(
+            skill.id,
+            0
+        )
+
+        demand = demand_map.get(
+            skill.id,
+            0
+        )
+
+        if score >= 70:
+
+            level = "Strong"
+
+        elif score >= 50:
+
+            level = "Developing"
+
+        else:
+
+            level = "Gap"
+
+        skill_data = {
+            "id": skill.id,
+            "name": skill.name,
+            "category": skill.category,
+            "score": score,
+            "industry_demand": demand,
+            "level": level,
+        }
+
+        if level == "Strong":
+
+            strengths.append(skill_data)
+
+        elif level == "Developing":
+
+            developing.append(skill_data)
+
+        else:
+
+            gaps.append(skill_data)
+
+    # --------------------------------------------------------
+    # Prioritize gaps
+    #
+    # Higher industry demand + lower student score
+    # = higher priority
+    # --------------------------------------------------------
+
+    gaps.sort(
+        key=lambda item: (
+            item["industry_demand"],
+            -item["score"],
+        ),
+        reverse=True,
+    )
+
+    # --------------------------------------------------------
+    # Response
+    # --------------------------------------------------------
+
+    return {
+        "student": {
+            "id": student.id,
+            "name": current_user.name,
+            "readiness": student.readiness,
+        },
+
+        "summary": {
+            "total_skills": len(all_skills),
+            "strong": len(strengths),
+            "developing": len(developing),
+            "gaps": len(gaps),
+        },
+
+        "strengths": strengths,
+
+        "developing": developing,
+
+        "gaps": gaps,
+    }
 # ============================================================
 # STUDENT DASHBOARD
 # ============================================================
@@ -1421,6 +1614,10 @@ def delete_achievement(
     }
 
 
+# ============================================================
+# GET PERSONALIZED LEARNING RESOURCES
+# ============================================================
+
 @router.get("/learning")
 def get_learning_resources(
     current_user: User = Depends(
@@ -1428,6 +1625,10 @@ def get_learning_resources(
     ),
     db: Session = Depends(get_db),
 ):
+
+    # --------------------------------------------------------
+    # Find student
+    # --------------------------------------------------------
 
     student = (
         db.query(Student)
@@ -1444,6 +1645,33 @@ def get_learning_resources(
             detail="Student profile not found.",
         )
 
+    # --------------------------------------------------------
+    # Get student's skill scores
+    # --------------------------------------------------------
+
+    student_skills = (
+        db.query(
+            Skill,
+            StudentSkill,
+        )
+        .join(
+            StudentSkill,
+            StudentSkill.skill_id == Skill.id,
+        )
+        .filter(
+            StudentSkill.student_id == student.id
+        )
+        .all()
+    )
+
+    student_skill_map = {
+        skill.id: student_skill.score
+        for skill, student_skill in student_skills
+    }
+
+    # --------------------------------------------------------
+    # Get all learning resources
+    # --------------------------------------------------------
 
     resources = (
         db.query(
@@ -1454,9 +1682,15 @@ def get_learning_resources(
             Skill,
             LearningResource.skill_id == Skill.id,
         )
+        .order_by(
+            LearningResource.id.desc()
+        )
         .all()
     )
 
+    # --------------------------------------------------------
+    # Get student's learning progress
+    # --------------------------------------------------------
 
     progress_records = (
         db.query(StudentLearning)
@@ -1466,42 +1700,125 @@ def get_learning_resources(
         .all()
     )
 
-
     progress_map = {
         record.resource_id: record
         for record in progress_records
     }
 
+    # --------------------------------------------------------
+    # Build personalized resources
+    # --------------------------------------------------------
 
-    return [
+    result = []
 
-        {
+    for resource, skill in resources:
+
+        score = student_skill_map.get(
+            skill.id,
+            0
+        )
+
+        # ----------------------------------------------
+        # Determine recommendation level
+        # ----------------------------------------------
+
+        if score < 50:
+
+            recommendation = "High Priority"
+            recommendation_level = 3
+            is_gap = True
+
+        elif score < 70:
+
+            recommendation = "Recommended"
+            recommendation_level = 2
+            is_gap = False
+
+        else:
+
+            recommendation = "Optional"
+            recommendation_level = 1
+            is_gap = False
+
+        # ----------------------------------------------
+        # Learning progress
+        # ----------------------------------------------
+
+        progress_record = progress_map.get(
+            resource.id
+        )
+
+        if progress_record:
+
+            status = progress_record.status
+            progress = progress_record.progress
+
+        else:
+
+            status = "Not Started"
+            progress = 0
+
+        # ----------------------------------------------
+        # Add resource
+        # ----------------------------------------------
+
+        result.append({
+
             "id": resource.id,
+
             "skill_id": resource.skill_id,
+
             "skill": skill.name,
+
+            "skill_category": skill.category,
+
+            "student_score": score,
+
             "title": resource.title,
+
             "description": resource.description,
+
             "provider": resource.provider,
+
             "difficulty": resource.difficulty,
+
             "duration": resource.duration,
+
             "url": resource.url,
 
-            "status": (
-                progress_map[resource.id].status
-                if resource.id in progress_map
-                else "Not Started"
-            ),
+            "status": status,
 
-            "progress": (
-                progress_map[resource.id].progress
-                if resource.id in progress_map
-                else 0
-            ),
-        }
+            "progress": progress,
 
-        for resource, skill in resources
+            "is_gap": is_gap,
 
-    ]
+            "recommendation": recommendation,
+
+            "recommendation_level": recommendation_level,
+
+        })
+
+    # --------------------------------------------------------
+    # Sort:
+    #
+    # 1. High Priority skill gaps
+    # 2. Recommended developing skills
+    # 3. Optional strong skills
+    #
+    # Within each group, resources already in progress
+    # come first.
+    # --------------------------------------------------------
+
+    result.sort(
+        key=lambda item: (
+            item["recommendation_level"],
+            1 if item["status"] == "In Progress" else 0,
+            item["student_score"],
+        ),
+        reverse=True,
+    )
+
+    return result
 
 @router.post("/learning/{resource_id}/start")
 def start_learning(

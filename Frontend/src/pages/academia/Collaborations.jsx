@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+
 import {
   Building2,
   BriefcaseBusiness,
@@ -12,12 +13,22 @@ import {
   X,
   CheckCircle2,
   Loader2,
+  Plus,
+  Send,
 } from "lucide-react";
 
-import { apiGet } from "../../services/api";
+import {
+  apiGet,
+  apiPost,
+} from "../../services/api";
 
+
+/* ============================================================
+   TYPE ICON
+============================================================ */
 
 function getTypeIcon(type) {
+
   if (type === "Workshop") {
     return Presentation;
   }
@@ -42,7 +53,12 @@ function getTypeIcon(type) {
 }
 
 
+/* ============================================================
+   TYPE STYLE
+============================================================ */
+
 function getTypeStyle(type) {
+
   if (type === "Workshop" || type === "Training") {
     return "bg-blue-50 text-blue-700";
   }
@@ -63,7 +79,12 @@ function getTypeStyle(type) {
 }
 
 
+/* ============================================================
+   STATUS STYLE
+============================================================ */
+
 function getStatusStyle(status) {
+
   if (status === "Active") {
     return "bg-green-50 text-green-700";
   }
@@ -84,7 +105,12 @@ function getStatusStyle(status) {
 }
 
 
+/* ============================================================
+   DATE FORMATTER
+============================================================ */
+
 function formatDate(date) {
+
   if (!date) {
     return "Not specified";
   }
@@ -103,7 +129,17 @@ function formatDate(date) {
 }
 
 
-function StatCard({ title, value, subtitle, icon: Icon }) {
+/* ============================================================
+   STAT CARD
+============================================================ */
+
+function StatCard({
+  title,
+  value,
+  subtitle,
+  icon: Icon,
+}) {
+
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5">
 
@@ -141,139 +177,563 @@ function StatCard({ title, value, subtitle, icon: Icon }) {
 }
 
 
+/* ============================================================
+   MAIN COMPONENT
+============================================================ */
+
 function Collaborations() {
 
-  const [collaborations, setCollaborations] = useState([]);
+  /* ----------------------------------------------------------
+     Collaboration state
+  ---------------------------------------------------------- */
 
-  const [filter, setFilter] = useState("All");
+  const [collaborations, setCollaborations] =
+    useState([]);
+
+  const [filter, setFilter] =
+    useState("All");
 
   const [selectedCollaboration, setSelectedCollaboration] =
     useState(null);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] =
+    useState(true);
 
-  const [error, setError] = useState("");
+  const [error, setError] =
+    useState("");
 
 
-  // --------------------------------------------------------
-  // Load collaborations from backend
-  // --------------------------------------------------------
+  /* ----------------------------------------------------------
+     Create collaboration state
+
+     IMPORTANT:
+     These hooks MUST be inside the component.
+  ---------------------------------------------------------- */
+
+  const [showCreateForm, setShowCreateForm] =
+    useState(false);
+
+  const [companies, setCompanies] =
+    useState([]);
+
+  const [form, setForm] =
+    useState({
+      company_id: "",
+      title: "",
+      description: "",
+    });
+
+  const [creating, setCreating] =
+    useState(false);
+
+
+  /* ==========================================================
+     LOAD COMPANIES
+  ========================================================== */
 
   useEffect(() => {
 
-    const loadCollaborations = async () => {
+    const loadCompanies = async () => {
 
       try {
 
-        setLoading(true);
-        setError("");
+        const data =
+          await apiGet("/academia/companies");
 
-        const data = await apiGet(
-          "/academia/collaborations"
-        );
-
-        setCollaborations(
-          Array.isArray(data) ? data : []
+        setCompanies(
+          Array.isArray(data)
+            ? data
+            : []
         );
 
       } catch (err) {
 
         console.error(
-          "Failed to load collaborations:",
+          "Failed to load companies:",
           err
         );
-
-        setError(
-          err.message ||
-          "Unable to load collaborations."
-        );
-
-      } finally {
-
-        setLoading(false);
 
       }
 
     };
+
+    loadCompanies();
+
+  }, []);
+
+
+  /* ==========================================================
+     LOAD COLLABORATIONS
+  ========================================================== */
+
+  const loadCollaborations = async () => {
+
+    try {
+
+      setLoading(true);
+      setError("");
+
+      const data =
+        await apiGet(
+          "/academia/collaborations"
+        );
+
+      setCollaborations(
+        Array.isArray(data)
+          ? data
+          : []
+      );
+
+    } catch (err) {
+
+      console.error(
+        "Failed to load collaborations:",
+        err
+      );
+
+      setError(
+        err.message ||
+        "Unable to load collaborations."
+      );
+
+    } finally {
+
+      setLoading(false);
+
+    }
+
+  };
+
+
+  useEffect(() => {
 
     loadCollaborations();
 
   }, []);
 
 
-  // --------------------------------------------------------
-  // Derived statistics
-  // --------------------------------------------------------
+  /* ==========================================================
+     CREATE COLLABORATION
+  ========================================================== */
+
+  const handleCreateCollaboration =
+    async (e) => {
+
+      e.preventDefault();
+
+      if (
+        !form.company_id ||
+        !form.title.trim()
+      ) {
+
+        setError(
+          "Please select a company and enter a title."
+        );
+
+        return;
+      }
+
+
+      try {
+
+        setCreating(true);
+        setError("");
+
+
+        await apiPost(
+          "/academia/collaborations",
+          {
+            company_id:
+              Number(form.company_id),
+
+            title:
+              form.title.trim(),
+
+            description:
+              form.description.trim() ||
+              null,
+          }
+        );
+
+
+        /* Reset form */
+
+        setForm({
+          company_id: "",
+          title: "",
+          description: "",
+        });
+
+
+        /* Close form */
+
+        setShowCreateForm(false);
+
+
+        /* Refresh real data */
+
+        await loadCollaborations();
+
+
+      } catch (err) {
+
+        console.error(
+          "Failed to create collaboration:",
+          err
+        );
+
+        setError(
+          err.message ||
+          "Unable to create collaboration."
+        );
+
+      } finally {
+
+        setCreating(false);
+
+      }
+
+    };
+
+
+  /* ==========================================================
+     DERIVED STATISTICS
+  ========================================================== */
 
   const totalCollaborations =
     collaborations.length;
 
+
   const pendingCollaborations =
     collaborations.filter(
-      (item) => item.status === "Pending"
+      (item) =>
+        item.status === "Pending"
     ).length;
+
 
   const activeCollaborations =
     collaborations.filter(
-      (item) => item.status === "Active"
+      (item) =>
+        item.status === "Active" ||
+        item.status === "Approved"
     ).length;
+
 
   const totalPartners =
     new Set(
       collaborations.map(
-        (item) => item.company_id
+        (item) =>
+          item.company_id
       )
     ).size;
 
 
-  // --------------------------------------------------------
-  // Filtering
-  // --------------------------------------------------------
+  /* ==========================================================
+     FILTERING
+  ========================================================== */
 
   const filteredCollaborations =
     filter === "All"
       ? collaborations
       : collaborations.filter(
-          (item) => item.status === filter
+          (item) =>
+            item.status === filter
         );
 
 
+  /* ==========================================================
+     RENDER
+  ========================================================== */
+
   return (
+
     <div className="space-y-7">
 
 
-      {/* Header */}
+      {/* ======================================================
+         HEADER
+      ====================================================== */}
 
-      <div>
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
 
-        <p className="text-sm text-blue-600 font-medium">
-          INDUSTRY CONNECTION
-        </p>
+        <div>
 
-        <h1 className="text-3xl font-bold text-slate-900 mt-1">
-          Collaborations
-        </h1>
+          <p className="text-sm text-blue-600 font-medium">
+            INDUSTRY CONNECTION
+          </p>
 
-        <p className="text-slate-500 mt-2">
-          Manage academic-industry workshops, projects,
-          research and engagement activities.
-        </p>
+          <h1 className="text-3xl font-bold text-slate-900 mt-1">
+            Collaborations
+          </h1>
+
+          <p className="text-slate-500 mt-2">
+            Manage academic-industry workshops,
+            projects, research and engagement activities.
+          </p>
+
+        </div>
+
+
+        <button
+          onClick={() => {
+
+            setError("");
+            setShowCreateForm(true);
+
+          }}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+        >
+
+          <Plus size={17} />
+
+          Create Collaboration
+
+        </button>
 
       </div>
 
 
-      {/* Error */}
+      {/* ======================================================
+         ERROR
+      ====================================================== */}
 
       {error && (
 
         <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">
+
           {error}
+
         </div>
 
       )}
 
 
-      {/* KPI Cards */}
+      {/* ======================================================
+         CREATE FORM
+      ====================================================== */}
+
+      {showCreateForm && (
+
+        <section className="bg-white border border-slate-200 rounded-2xl p-6">
+
+          <div className="flex items-center justify-between mb-6">
+
+            <div>
+
+              <h2 className="text-lg font-semibold text-slate-900">
+                Create Collaboration
+              </h2>
+
+              <p className="text-sm text-slate-500 mt-1">
+                Send a collaboration request to an industry partner.
+              </p>
+
+            </div>
+
+
+            <button
+              type="button"
+              onClick={() => {
+
+                setShowCreateForm(false);
+                setError("");
+
+              }}
+              className="p-2 rounded-lg hover:bg-slate-100 text-slate-500"
+            >
+
+              <X size={19} />
+
+            </button>
+
+          </div>
+
+
+          <form
+            onSubmit={handleCreateCollaboration}
+            className="space-y-5"
+          >
+
+
+            {/* Industry Partner */}
+
+            <div>
+
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+
+                Industry Partner *
+
+              </label>
+
+
+              <select
+                value={form.company_id}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    company_id:
+                      e.target.value,
+                  })
+                }
+                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              >
+
+                <option value="">
+                  Select an industry partner
+                </option>
+
+
+                {companies.map(
+                  (company) => (
+
+                    <option
+                      key={company.id}
+                      value={company.id}
+                    >
+
+                      {company.company_name}
+
+                      {company.industry
+                        ? ` — ${company.industry}`
+                        : ""}
+
+                    </option>
+
+                  )
+                )}
+
+              </select>
+
+
+              {companies.length === 0 && (
+
+                <p className="text-xs text-slate-400 mt-2">
+                  No registered industry partners are available.
+                </p>
+
+              )}
+
+            </div>
+
+
+            {/* Title */}
+
+            <div>
+
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+
+                Collaboration Title *
+
+              </label>
+
+
+              <input
+                type="text"
+                value={form.title}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    title: e.target.value,
+                  })
+                }
+                placeholder="e.g. Industry Workshop on Data Analytics"
+                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+
+            </div>
+
+
+            {/* Description */}
+
+            <div>
+
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+
+                Description
+
+              </label>
+
+
+              <textarea
+                value={form.description}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    description:
+                      e.target.value,
+                  })
+                }
+                rows={5}
+                placeholder="Describe the proposed workshop, project, research activity, training, etc."
+                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+
+            </div>
+
+
+            {/* Buttons */}
+
+            <div className="flex justify-end gap-3">
+
+              <button
+                type="button"
+                onClick={() => {
+
+                  setShowCreateForm(false);
+                  setError("");
+
+                }}
+                className="px-4 py-2.5 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50"
+              >
+
+                Cancel
+
+              </button>
+
+
+              <button
+                type="submit"
+                disabled={
+                  creating ||
+                  companies.length === 0
+                }
+                className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+              >
+
+                {creating ? (
+
+                  <Loader2
+                    size={16}
+                    className="animate-spin"
+                  />
+
+                ) : (
+
+                  <Send size={16} />
+
+                )}
+
+
+                {creating
+                  ? "Sending..."
+                  : "Send Request"}
+
+              </button>
+
+            </div>
+
+          </form>
+
+        </section>
+
+      )}
+
+
+      {/* ======================================================
+         KPI CARDS
+      ====================================================== */}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
 
@@ -284,6 +744,7 @@ function Collaborations() {
           icon={Handshake}
         />
 
+
         <StatCard
           title="Industry Partners"
           value={totalPartners}
@@ -291,12 +752,14 @@ function Collaborations() {
           icon={Building2}
         />
 
+
         <StatCard
           title="Active Collaborations"
           value={activeCollaborations}
-          subtitle="Currently active"
+          subtitle="Approved or active"
           icon={BriefcaseBusiness}
         />
+
 
         <StatCard
           title="Pending Requests"
@@ -308,7 +771,9 @@ function Collaborations() {
       </div>
 
 
-      {/* Collaboration Categories */}
+      {/* ======================================================
+         CATEGORY CARDS
+      ====================================================== */}
 
       <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
 
@@ -335,9 +800,11 @@ function Collaborations() {
           },
         ].map((item) => {
 
-          const Icon = item.icon;
+          const Icon =
+            item.icon;
 
           return (
+
             <div
               key={item.label}
               className="bg-white border border-slate-200 rounded-xl p-4"
@@ -361,6 +828,7 @@ function Collaborations() {
               </p>
 
             </div>
+
           );
 
         })}
@@ -368,7 +836,9 @@ function Collaborations() {
       </section>
 
 
-      {/* Activities */}
+      {/* ======================================================
+         ACTIVITIES
+      ====================================================== */}
 
       <section className="bg-white border border-slate-200 rounded-2xl p-6">
 
@@ -401,14 +871,18 @@ function Collaborations() {
 
               <button
                 key={item}
-                onClick={() => setFilter(item)}
+                onClick={() =>
+                  setFilter(item)
+                }
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
                   filter === item
                     ? "bg-slate-900 text-white"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
+
                 {item}
+
               </button>
 
             ))}
@@ -475,110 +949,126 @@ function Collaborations() {
 
             <div className="mt-6 space-y-4">
 
-              {filteredCollaborations.map((item) => {
+              {filteredCollaborations.map(
+                (item) => {
 
-                const Icon = getTypeIcon(item.type);
+                  const Icon =
+                    getTypeIcon(item.type);
 
-                return (
+                  return (
 
-                  <div
-                    key={item.id}
-                    className="border border-slate-100 rounded-xl p-5 hover:border-blue-200 transition"
-                  >
+                    <div
+                      key={item.id}
+                      className="border border-slate-100 rounded-xl p-5 hover:border-blue-200 transition"
+                    >
 
-                    <div className="flex flex-col lg:flex-row lg:items-center gap-5">
-
-
-                      {/* Icon */}
-
-                      <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-
-                        <Icon
-                          size={20}
-                          className="text-blue-600"
-                        />
-
-                      </div>
+                      <div className="flex flex-col lg:flex-row lg:items-center gap-5">
 
 
-                      {/* Main information */}
+                        {/* Icon */}
 
-                      <div className="flex-1">
+                        <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
 
-                        <div className="flex flex-wrap items-center gap-2">
+                          <Icon
+                            size={20}
+                            className="text-blue-600"
+                          />
 
-                          <h3 className="font-semibold text-slate-900">
-                            {item.title}
-                          </h3>
+                        </div>
 
-                          {item.type && (
+
+                        {/* Information */}
+
+                        <div className="flex-1">
+
+                          <div className="flex flex-wrap items-center gap-2">
+
+                            <h3 className="font-semibold text-slate-900">
+                              {item.title}
+                            </h3>
+
+
+                            {item.type && (
+
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-xs font-medium ${getTypeStyle(
+                                  item.type
+                                )}`}
+                              >
+                                {item.type}
+                              </span>
+
+                            )}
+
 
                             <span
-                              className={`px-2.5 py-1 rounded-full text-xs font-medium ${getTypeStyle(
-                                item.type
+                              className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusStyle(
+                                item.status
                               )}`}
                             >
-                              {item.type}
+                              {item.status}
                             </span>
 
-                          )}
-
-                          <span
-                            className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusStyle(
-                              item.status
-                            )}`}
-                          >
-                            {item.status}
-                          </span>
-
-                        </div>
+                          </div>
 
 
-                        <div className="flex flex-wrap gap-x-5 gap-y-2 mt-2">
+                          <div className="flex flex-wrap gap-x-5 gap-y-2 mt-2">
 
-                          <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                            <span className="flex items-center gap-1.5 text-xs text-slate-500">
 
-                            <Building2 size={14} />
+                              <Building2
+                                size={14}
+                              />
 
-                            {item.company}
+                              {item.company}
 
-                          </span>
+                            </span>
 
 
-                          <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                            <span className="flex items-center gap-1.5 text-xs text-slate-500">
 
-                            <CalendarDays size={14} />
+                              <CalendarDays
+                                size={14}
+                              />
 
-                            {formatDate(item.created_at)}
+                              {formatDate(
+                                item.created_at
+                              )}
 
-                          </span>
+                            </span>
+
+                          </div>
 
                         </div>
+
+
+                        {/* Details */}
+
+                        <button
+                          onClick={() =>
+                            setSelectedCollaboration(
+                              item
+                            )
+                          }
+                          className="flex items-center justify-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700 shrink-0"
+                        >
+
+                          Details
+
+                          <ChevronRight
+                            size={16}
+                          />
+
+                        </button>
 
                       </div>
-
-
-                      {/* Action */}
-
-                      <button
-                        onClick={() =>
-                          setSelectedCollaboration(item)
-                        }
-                        className="flex items-center justify-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700 shrink-0"
-                      >
-                        Details
-
-                        <ChevronRight size={16} />
-
-                      </button>
 
                     </div>
 
-                  </div>
+                  );
 
-                );
-
-              })}
+                }
+              )}
 
             </div>
 
@@ -587,7 +1077,9 @@ function Collaborations() {
       </section>
 
 
-      {/* Industry Partners */}
+      {/* ======================================================
+         INDUSTRY PARTNERS
+      ====================================================== */}
 
       <section className="bg-white border border-slate-200 rounded-2xl p-6">
 
@@ -604,6 +1096,7 @@ function Collaborations() {
             </p>
 
           </div>
+
 
           <Handshake
             size={21}
@@ -642,85 +1135,102 @@ function Collaborations() {
 
               {Array.from(
                 new Map(
-                  collaborations.map((item) => [
-                    item.company_id,
-                    item.company,
-                  ])
+                  collaborations.map(
+                    (item) => [
+                      item.company_id,
+                      item.company,
+                    ]
+                  )
                 )
-              ).map(([companyId, companyName]) => {
+              ).map(
+                ([
+                  companyId,
+                  companyName,
+                ]) => {
 
-                const companyCollaborations =
-                  collaborations.filter(
-                    (item) =>
-                      item.company_id === companyId
-                  );
+                  const companyCollaborations =
+                    collaborations.filter(
+                      (item) =>
+                        item.company_id ===
+                        companyId
+                    );
 
-                const hasActive =
-                  companyCollaborations.some(
-                    (item) =>
-                      item.status === "Active" ||
-                      item.status === "Approved"
-                  );
 
-                return (
+                  const hasActive =
+                    companyCollaborations.some(
+                      (item) =>
+                        item.status ===
+                          "Active" ||
+                        item.status ===
+                          "Approved"
+                    );
 
-                  <tr
-                    key={companyId}
-                    className="border-b border-slate-50 last:border-0"
-                  >
 
-                    <td className="py-4">
+                  return (
 
-                      <div className="flex items-center gap-3">
+                    <tr
+                      key={companyId}
+                      className="border-b border-slate-50 last:border-0"
+                    >
 
-                        <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+                      <td className="py-4">
 
-                          <Building2
-                            size={17}
-                            className="text-blue-600"
-                          />
+                        <div className="flex items-center gap-3">
+
+                          <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+
+                            <Building2
+                              size={17}
+                              className="text-blue-600"
+                            />
+
+                          </div>
+
+                          <span className="text-sm font-semibold text-slate-800">
+                            {companyName}
+                          </span>
 
                         </div>
 
-                        <span className="text-sm font-semibold text-slate-800">
-                          {companyName}
+                      </td>
+
+
+                      <td className="py-4 text-sm text-slate-600">
+
+                        {companyCollaborations.length}
+
+                      </td>
+
+
+                      <td className="py-4">
+
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                            hasActive
+                              ? "bg-green-50 text-green-700"
+                              : "bg-yellow-50 text-yellow-700"
+                          }`}
+                        >
+
+                          {hasActive
+                            ? "Active"
+                            : "Pending"}
+
                         </span>
 
-                      </div>
+                      </td>
 
-                    </td>
+                    </tr>
 
+                  );
 
-                    <td className="py-4 text-sm text-slate-600">
-                      {companyCollaborations.length}
-                    </td>
-
-
-                    <td className="py-4">
-
-                      <span
-                        className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                          hasActive
-                            ? "bg-green-50 text-green-700"
-                            : "bg-yellow-50 text-yellow-700"
-                        }`}
-                      >
-                        {hasActive
-                          ? "Active"
-                          : "Pending"}
-                      </span>
-
-                    </td>
-
-                  </tr>
-
-                );
-
-              })}
+                }
+              )}
 
             </tbody>
 
           </table>
+
 
           {!loading &&
             collaborations.length === 0 && (
@@ -736,7 +1246,9 @@ function Collaborations() {
       </section>
 
 
-      {/* Institutional Insight */}
+      {/* ======================================================
+         INSTITUTIONAL INSIGHT
+      ====================================================== */}
 
       <section className="bg-slate-900 rounded-2xl p-6 text-white">
 
@@ -747,6 +1259,7 @@ function Collaborations() {
             <Handshake size={21} />
 
           </div>
+
 
           <div>
 
@@ -773,7 +1286,9 @@ function Collaborations() {
       </section>
 
 
-      {/* Detail Modal */}
+      {/* ======================================================
+         DETAIL MODAL
+      ====================================================== */}
 
       {selectedCollaboration && (
 
@@ -800,9 +1315,10 @@ function Collaborations() {
 
                   {(() => {
 
-                    const Icon = getTypeIcon(
-                      selectedCollaboration.type
-                    );
+                    const Icon =
+                      getTypeIcon(
+                        selectedCollaboration.type
+                      );
 
                     return (
 
@@ -865,6 +1381,7 @@ function Collaborations() {
                   </span>
 
                 )}
+
 
                 <span
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium ${getStatusStyle(
@@ -1021,6 +1538,7 @@ function Collaborations() {
       )}
 
     </div>
+
   );
 }
 

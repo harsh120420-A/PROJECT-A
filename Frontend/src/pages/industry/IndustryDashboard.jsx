@@ -8,7 +8,6 @@ import {
   MapPin
 } from "lucide-react";
 
-import { defaultCompany } from "../../data/company";
 import { useNavigate } from "react-router-dom";
 
 import { apiGet } from "../../services/api";
@@ -16,9 +15,7 @@ import { apiGet } from "../../services/api";
 
 function IndustryDashboard() {
   const navigate = useNavigate();
-  const [company, setCompany] = useState(
-    defaultCompany
-  );
+  const [company, setCompany] = useState(null);
 
   const [opportunities, setOpportunities] =
     useState([]);
@@ -33,6 +30,20 @@ function IndustryDashboard() {
     selected_candidates: 0,
     average_match: 0
   });
+
+
+  useEffect(() => {
+  const loadCompanyProfile = async () => {
+    try {
+      const data = await apiGet("/industry/profile");
+      setCompany(data);
+    } catch (error) {
+      console.error("Failed to load company profile:", error);
+    }
+  };
+
+  loadCompanyProfile();
+}, []);
 
 
   useEffect(() => {
@@ -110,24 +121,22 @@ function IndustryDashboard() {
             <div className="flex items-center gap-4">
 
               <div className="w-14 h-14 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl font-bold">
-                {company.name
-                  .charAt(0)
-                  .toUpperCase()}
-              </div>
+  {company?.company_name?.charAt(0)?.toUpperCase() || "C"}
+</div>
 
               <div>
 
                 <h2 className="text-xl font-semibold">
-                  {company.name}
+                  {company?.company_name || "Company"}
                 </h2>
 
                 <p className="text-slate-500 mt-1">
-                  {company.industry}
+                  {company?.industry || "Industry"}
                 </p>
 
                 <p className="text-sm text-slate-400 mt-1 flex items-center gap-1">
                   <MapPin size={14} />
-                  {company.location}
+                  {company?.location || "Location"}
                 </p>
 
               </div>
@@ -165,7 +174,7 @@ function IndustryDashboard() {
                 </p>
 
                 <p className="text-3xl font-bold mt-2">
-                  {stats.active_opportunities}
+                  {stats.active_opportunities || 0}
                 </p>
 
               </div>
@@ -190,7 +199,7 @@ function IndustryDashboard() {
                 </p>
 
                 <p className="text-3xl font-bold mt-2">
-                 {stats.total_applications}
+                 {stats.total_applications || 0}
                 </p>
 
               </div>
@@ -215,7 +224,7 @@ function IndustryDashboard() {
                 </p>
 
                 <p className="text-3xl font-bold mt-2">
-                  {stats.total_candidates}
+                  {stats.total_candidates || 0}
                 </p>
 
               </div>
@@ -240,7 +249,7 @@ function IndustryDashboard() {
                 </p>
 
                 <p className="text-3xl font-bold mt-2">
-                 {stats.average_match}%
+                 {stats.average_match !== undefined ? `${stats.average_match}%` : "0%"}
                 </p>
 
               </div>
