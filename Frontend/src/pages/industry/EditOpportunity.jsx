@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { BriefcaseBusiness, MapPin, Clock, Plus, X } from "lucide-react";
+
+import {
+  BriefcaseBusiness,
+  MapPin,
+  Clock,
+  Plus,
+  X,
+} from "lucide-react";
 
 import { apiGet, apiPatch } from "../../services/api";
 
@@ -21,42 +28,40 @@ function EditOpportunity() {
   });
 
   const [skills, setSkills] = useState([]);
-
   const [skillInput, setSkillInput] = useState("");
-
   const [skillsList, setSkillsList] = useState([]);
-
   const [message, setMessage] = useState("");
-
   const [notFound, setNotFound] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  function getSkillId(skillName) {
-    return SKILL_ID_MAP[skillName];
-  }
-
-  /*
-   * Load opportunity
-   */
+  // ==========================================================
+  // LOAD OPPORTUNITY + AVAILABLE SKILLS
+  // ==========================================================
 
   useEffect(() => {
     async function loadData() {
-      function getSkillId(skillName) {
-        const skill = skillsList.find(
-          (item) => item.name.toLowerCase() === skillName.toLowerCase(),
-        );
-
-        return skill?.id;
-      }
       try {
-        const [opportunities, availableSkills] = await Promise.all([
-          apiGet("/industry/opportunities"),
-          apiGet("/industry/skills"),
-        ]);
+        setLoading(true);
+        setNotFound(false);
+        setMessage("");
 
-        setSkillsList(availableSkills);
+        const [opportunities, availableSkills] =
+          await Promise.all([
+            apiGet("/industry/opportunities"),
+            apiGet("/industry/skills"),
+          ]);
+
+        const loadedSkills = Array.isArray(
+          availableSkills
+        )
+          ? availableSkills
+          : [];
+
+        setSkillsList(loadedSkills);
 
         const opportunity = opportunities.find(
-          (item) => item.id.toString() === id,
+          (item) =>
+            item.id.toString() === id
         );
 
         if (!opportunity) {
@@ -64,37 +69,73 @@ function EditOpportunity() {
           return;
         }
 
+        // ------------------------------------------------------
+        // Opportunity details
+        // ------------------------------------------------------
+
         setForm({
           title: opportunity.title || "",
-          type: opportunity.type || "Internship",
-          description: opportunity.description || "",
-          location: opportunity.location || "",
-          mode: opportunity.mode || "Hybrid",
-          duration: opportunity.duration || "",
-          deadline: opportunity.deadline || "",
-          salary_min_lpa: opportunity.salary_min_lpa ?? "",
-          salary_max_lpa: opportunity.salary_max_lpa ?? "",
+          type:
+            opportunity.type ||
+            "Internship",
+          description:
+            opportunity.description || "",
+          location:
+            opportunity.location || "",
+          mode:
+            opportunity.mode || "Hybrid",
+          duration:
+            opportunity.duration || "",
+          deadline:
+            opportunity.deadline || "",
+          salary_min_lpa:
+            opportunity.salary_min_lpa ?? "",
+          salary_max_lpa:
+            opportunity.salary_max_lpa ?? "",
         });
 
+        // ------------------------------------------------------
+        // Backend now returns skill objects:
+        //
+        // {
+        //   id,
+        //   name,
+        //   category,
+        //   requiredScore
+        // }
+        // ------------------------------------------------------
+
         setSkills(
-          (opportunity.skills || []).map((skill) => ({
-            name: skill,
-            requiredScore: 50,
-          })),
+          (Array.isArray(
+            opportunity.skills
+          )
+            ? opportunity.skills
+            : []
+          ).map((skill) => ({
+            id: skill.id,
+            name: skill.name,
+            requiredScore:
+              skill.requiredScore ?? 50,
+          }))
         );
       } catch (error) {
-        console.error("Failed to load opportunity data:", error);
+        console.error(
+          "Failed to load opportunity data:",
+          error
+        );
 
         setNotFound(true);
+      } finally {
+        setLoading(false);
       }
     }
 
     loadData();
   }, [id]);
 
-  /*
-   * Handle form changes
-   */
+  // ==========================================================
+  // HANDLE FORM CHANGES
+  // ==========================================================
 
   function handleChange(e) {
     const { name, value } = e.target;
@@ -105,9 +146,9 @@ function EditOpportunity() {
     }));
   }
 
-  /*
-   * Add skill
-   */
+  // ==========================================================
+  // ADD SKILL
+  // ==========================================================
 
   function addSkill() {
     const skill = skillInput.trim();
@@ -117,17 +158,22 @@ function EditOpportunity() {
     }
 
     const matchedSkill = skillsList.find(
-      (item) => item.name.toLowerCase() === skill.toLowerCase(),
+      (item) =>
+        item.name.toLowerCase() ===
+        skill.toLowerCase()
     );
 
     if (!matchedSkill) {
-      setMessage("Please select a skill from the available skills.");
+      setMessage(
+        "Please select a skill from the available skills."
+      );
       return;
     }
 
     const alreadyExists = skills.some(
       (existingSkill) =>
-        existingSkill.name.toLowerCase() === matchedSkill.name.toLowerCase(),
+        existingSkill.id ===
+        matchedSkill.id
     );
 
     if (alreadyExists) {
@@ -138,6 +184,7 @@ function EditOpportunity() {
     setSkills((previous) => [
       ...previous,
       {
+        id: matchedSkill.id,
         name: matchedSkill.name,
         requiredScore: 50,
       },
@@ -147,82 +194,132 @@ function EditOpportunity() {
     setMessage("");
   }
 
-  /*
-   * Remove skill
-   */
+  // ==========================================================
+  // REMOVE SKILL
+  // ==========================================================
 
-  function removeSkill(skillToRemove) {
+  function removeSkill(skillId) {
     setSkills((previous) =>
-      previous.filter((skill) => skill.name !== skillToRemove),
+      previous.filter(
+        (skill) => skill.id !== skillId
+      )
     );
   }
 
-  /*
-   * Add skill using Enter
-   */
+  // ==========================================================
+  // ADD SKILL USING ENTER
+  // ==========================================================
 
   function handleSkillKeyDown(e) {
     if (e.key === "Enter") {
       e.preventDefault();
-
       addSkill();
     }
   }
 
-  /*
-   * Save changes
-   */
+  // ==========================================================
+  // SAVE CHANGES
+  // ==========================================================
 
   async function handleSubmit(e) {
-    const skillIds = skills
-      .map((skill) => getSkillId(skill.name))
-      .filter(Boolean);
+    e.preventDefault();
 
-    if (skillIds.length !== skills.length) {
-      setMessage("One or more selected skills are not supported.");
+    if (skills.length === 0) {
+      setMessage(
+        "Please add at least one required skill."
+      );
       return;
     }
 
     const minSalary =
-      form.salary_min_lpa === "" ? null : Number(form.salary_min_lpa);
+      form.salary_min_lpa === ""
+        ? null
+        : Number(form.salary_min_lpa);
 
     const maxSalary =
-      form.salary_max_lpa === "" ? null : Number(form.salary_max_lpa);
+      form.salary_max_lpa === ""
+        ? null
+        : Number(form.salary_max_lpa);
 
-    if (minSalary !== null && maxSalary !== null && minSalary > maxSalary) {
-      setMessage("Minimum salary cannot be greater than maximum salary.");
+    if (
+      minSalary !== null &&
+      maxSalary !== null &&
+      minSalary > maxSalary
+    ) {
+      setMessage(
+        "Minimum salary cannot be greater than maximum salary."
+      );
+      return;
+    }
+
+    // Validate skill IDs
+
+    const invalidSkill = skills.some(
+      (skill) =>
+        !skill.id ||
+        !skillsList.some(
+          (availableSkill) =>
+            availableSkill.id === skill.id
+        )
+    );
+
+    if (invalidSkill) {
+      setMessage(
+        "One or more selected skills are not supported."
+      );
       return;
     }
 
     try {
-      await apiPatch(`/industry/opportunities/${id}`, {
-        title: form.title,
-        type: form.type,
-        description: form.description,
-        location: form.location,
-        mode: form.mode,
-        duration: form.duration,
-        deadline: form.deadline,
-        salary_min_lpa: minSalary,
-        salary_max_lpa: maxSalary,
-        skill_ids: skills.map((skill) => getSkillId(skill.name)),
-      });
+      await apiPatch(
+        `/industry/opportunities/${id}`,
+        {
+          title: form.title,
+          type: form.type,
+          description: form.description,
+          location: form.location,
+          mode: form.mode,
+          duration: form.duration,
+          deadline: form.deadline,
+          salary_min_lpa: minSalary,
+          salary_max_lpa: maxSalary,
 
-      setMessage("Opportunity updated successfully!");
+          // New backend format
+          skill_requirements: skills.map(
+            (skill) => ({
+              skill_id: skill.id,
+              required_score:
+                skill.requiredScore,
+            })
+          ),
+        }
+      );
+
+      setMessage(
+        "Opportunity updated successfully!"
+      );
 
       setTimeout(() => {
-        navigate("/industry/opportunities");
+        navigate(
+          "/industry/opportunities"
+        );
       }, 800);
     } catch (error) {
-      console.error("Failed to update opportunity:", error);
+      console.error(
+        "Failed to update opportunity:",
+        error
+      );
 
-      setMessage(error.message || "Failed to update opportunity.");
+      setMessage(
+        error.message ||
+          "Failed to update opportunity."
+      );
     }
   }
 
-  /*
-   * Opportunity not found
-   */
+  // ==========================================================
+  // NOT FOUND
+  // ==========================================================
 
   if (notFound) {
     return (
@@ -233,11 +330,16 @@ function EditOpportunity() {
           </h1>
 
           <p className="text-slate-500 mt-2">
-            The opportunity you're trying to edit does not exist.
+            The opportunity you're trying to edit
+            does not exist.
           </p>
 
           <button
-            onClick={() => navigate("/industry/opportunities")}
+            onClick={() =>
+              navigate(
+                "/industry/opportunities"
+              )
+            }
             className="mt-5 px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
           >
             Back to Opportunities
@@ -247,27 +349,52 @@ function EditOpportunity() {
     );
   }
 
+  // ==========================================================
+  // LOADING
+  // ==========================================================
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <p className="text-slate-500">
+          Loading opportunity...
+        </p>
+      </div>
+    );
+  }
+
+  // ==========================================================
+  // UI
+  // ==========================================================
+
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
+      {/* ======================================================
+          HEADER
+          ====================================================== */}
 
       <div className="bg-white border-b">
         <div className="px-8 py-6">
-          <p className="text-sm text-blue-600 font-medium">INDUSTRY PORTAL</p>
+          <p className="text-sm text-blue-600 font-medium">
+            INDUSTRY PORTAL
+          </p>
 
           <h1 className="text-3xl font-bold text-slate-900 mt-2">
             Edit Opportunity
           </h1>
 
           <p className="text-slate-500 mt-2">
-            Update the details and requirements of your opportunity.
+            Update the details and requirements
+            of your opportunity.
           </p>
         </div>
       </div>
 
       <div className="p-8 max-w-5xl">
         <form onSubmit={handleSubmit}>
-          {/* Opportunity Details */}
+          {/* ==================================================
+              OPPORTUNITY DETAILS
+              ================================================== */}
 
           <div className="bg-white border rounded-2xl p-6">
             <div className="flex items-center gap-3">
@@ -276,10 +403,13 @@ function EditOpportunity() {
               </div>
 
               <div>
-                <h2 className="text-xl font-semibold">Opportunity Details</h2>
+                <h2 className="text-xl font-semibold">
+                  Opportunity Details
+                </h2>
 
                 <p className="text-sm text-slate-500 mt-1">
-                  Update the basic information about this opportunity.
+                  Update the basic information
+                  about this opportunity.
                 </p>
               </div>
             </div>
@@ -315,15 +445,21 @@ function EditOpportunity() {
                   onChange={handleChange}
                   className="w-full border border-slate-200 rounded-lg px-4 py-3 bg-white outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="Internship">Internship</option>
+                  <option value="Internship">
+                    Internship
+                  </option>
 
-                  <option value="Full-time Job">Full-time Job</option>
+                  <option value="Full-time Job">
+                    Full-time Job
+                  </option>
 
                   <option value="Industrial Training">
                     Industrial Training
                   </option>
 
-                  <option value="Industry Project">Industry Project</option>
+                  <option value="Industry Project">
+                    Industry Project
+                  </option>
                 </select>
               </div>
 
@@ -352,7 +488,7 @@ function EditOpportunity() {
                 </div>
               </div>
 
-              {/* Salary Range */}
+              {/* Minimum Salary */}
 
               <div>
                 <label className="block text-sm font-medium mb-2">
@@ -370,6 +506,8 @@ function EditOpportunity() {
                   className="w-full border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
+
+              {/* Maximum Salary */}
 
               <div>
                 <label className="block text-sm font-medium mb-2">
@@ -426,11 +564,17 @@ function EditOpportunity() {
                   onChange={handleChange}
                   className="w-full border border-slate-200 rounded-lg px-4 py-3 bg-white outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="On-site">On-site</option>
+                  <option value="On-site">
+                    On-site
+                  </option>
 
-                  <option value="Hybrid">Hybrid</option>
+                  <option value="Hybrid">
+                    Hybrid
+                  </option>
 
-                  <option value="Remote">Remote</option>
+                  <option value="Remote">
+                    Remote
+                  </option>
                 </select>
               </div>
 
@@ -470,21 +614,30 @@ function EditOpportunity() {
             </div>
           </div>
 
-          {/* Skills */}
+          {/* ======================================================
+              REQUIRED SKILLS
+              ====================================================== */}
 
           <div className="bg-white border rounded-2xl p-6 mt-6">
-            <h2 className="text-xl font-semibold">Required Skills</h2>
+            <h2 className="text-xl font-semibold">
+              Required Skills
+            </h2>
 
             <p className="text-sm text-slate-500 mt-1">
-              Update the skills required for this opportunity.
+              Update the skills and proficiency
+              levels required for this opportunity.
             </p>
+
+            {/* Skill Input */}
 
             <div className="flex gap-3 mt-6">
               <input
                 type="text"
                 list="available-skills"
                 value={skillInput}
-                onChange={(e) => setSkillInput(e.target.value)}
+                onChange={(e) =>
+                  setSkillInput(e.target.value)
+                }
                 onKeyDown={handleSkillKeyDown}
                 placeholder="Select a skill"
                 className="flex-1 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
@@ -492,7 +645,10 @@ function EditOpportunity() {
 
               <datalist id="available-skills">
                 {skillsList.map((skill) => (
-                  <option key={skill.id} value={skill.name}>
+                  <option
+                    key={skill.id}
+                    value={skill.name}
+                  >
                     {skill.category}
                   </option>
                 ))}
@@ -508,55 +664,73 @@ function EditOpportunity() {
               </button>
             </div>
 
+            {/* Current Skills */}
+
             <div className="mt-6 space-y-4">
-              {skills.map((skill, index) => (
-                <div key={skill.name} className="border rounded-xl p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-slate-800">
-                      {skill.name}
-                    </span>
+              {skills.map(
+                (skill, index) => (
+                  <div
+                    key={skill.id}
+                    className="border rounded-xl p-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-slate-800">
+                        {skill.name}
+                      </span>
 
-                    <span className="text-sm font-semibold text-blue-600">
-                      {skill.requiredScore}%
-                    </span>
+                      <span className="text-sm font-semibold text-blue-600">
+                        {skill.requiredScore}%
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-4 mt-4">
+                      <input
+                        type="range"
+                        min="10"
+                        max="100"
+                        step="5"
+                        value={
+                          skill.requiredScore
+                        }
+                        onChange={(e) => {
+                          const updatedSkills =
+                            [...skills];
+
+                          updatedSkills[index] = {
+                            ...updatedSkills[index],
+                            requiredScore:
+                              Number(
+                                e.target.value
+                              ),
+                          };
+
+                          setSkills(
+                            updatedSkills
+                          );
+                        }}
+                        className="flex-1"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          removeSkill(
+                            skill.id
+                          )
+                        }
+                        className="p-2 text-slate-400 hover:text-red-500"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+
+                    <div className="flex justify-between text-xs text-slate-400 mt-2">
+                      <span>Basic</span>
+                      <span>Advanced</span>
+                    </div>
                   </div>
-
-                  <div className="flex items-center gap-4 mt-4">
-                    <input
-                      type="range"
-                      min="10"
-                      max="100"
-                      step="5"
-                      value={skill.requiredScore}
-                      onChange={(e) => {
-                        const updatedSkills = [...skills];
-
-                        updatedSkills[index] = {
-                          ...updatedSkills[index],
-                          requiredScore: Number(e.target.value),
-                        };
-
-                        setSkills(updatedSkills);
-                      }}
-                      className="flex-1"
-                    />
-
-                    <button
-                      type="button"
-                      onClick={() => removeSkill(skill.name)}
-                      className="p-2 text-slate-400 hover:text-red-500"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-
-                  <div className="flex justify-between text-xs text-slate-400 mt-2">
-                    <span>Basic</span>
-
-                    <span>Advanced</span>
-                  </div>
-                </div>
-              ))}
+                )
+              )}
             </div>
 
             {skills.length === 0 && (
@@ -566,12 +740,16 @@ function EditOpportunity() {
             )}
           </div>
 
-          {/* Message */}
+          {/* ======================================================
+              MESSAGE
+              ====================================================== */}
 
           {message && (
             <div
               className={`mt-6 p-4 rounded-xl text-sm ${
-                message.includes("successfully")
+                message.includes(
+                  "successfully"
+                )
                   ? "bg-green-50 text-green-700"
                   : "bg-red-50 text-red-600"
               }`}
@@ -580,12 +758,18 @@ function EditOpportunity() {
             </div>
           )}
 
-          {/* Actions */}
+          {/* ======================================================
+              ACTIONS
+              ====================================================== */}
 
           <div className="flex justify-end gap-3 mt-6">
             <button
               type="button"
-              onClick={() => navigate("/industry/opportunities")}
+              onClick={() =>
+                navigate(
+                  "/industry/opportunities"
+                )
+              }
               className="px-5 py-3 border border-slate-200 bg-white rounded-lg font-medium hover:bg-slate-50"
             >
               Cancel

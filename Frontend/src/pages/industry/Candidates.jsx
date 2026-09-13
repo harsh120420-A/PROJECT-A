@@ -34,100 +34,6 @@ function Candidates() {
   const [updatingApplication, setUpdatingApplication] = useState(null);
 
   // ============================================================
-  // CALCULATE MATCH
-  // ============================================================
-
-  function calculateCandidateMatch(candidateSkills, requiredSkills) {
-    if (!requiredSkills || requiredSkills.length === 0) {
-      return 0;
-    }
-
-    if (!candidateSkills || candidateSkills.length === 0) {
-      return 0;
-    }
-
-    let totalScore = 0;
-
-    requiredSkills.forEach((requiredSkill) => {
-      const candidateSkill = candidateSkills.find(
-        (skill) => skill.id === requiredSkill.id,
-      );
-
-      if (candidateSkill) {
-        const candidateScore = Number(candidateSkill.score || 0);
-
-        const requiredScore = Number(requiredSkill.requiredScore || 50);
-
-        // Candidate receives full credit
-        // when their score meets the requirement.
-        if (candidateScore >= requiredScore) {
-          totalScore += 100;
-        } else {
-          // Partial credit when below
-          // the required score.
-          totalScore += (candidateScore / requiredScore) * 100;
-        }
-      }
-    });
-
-    return Math.round(totalScore / requiredSkills.length);
-  }
-
-  // ============================================================
-  // GET MATCHING SKILLS
-  // ============================================================
-
-  function getMatchingSkills(candidateSkills, requiredSkills) {
-    if (!candidateSkills) {
-      return [];
-    }
-
-    return requiredSkills
-      .filter((requiredSkill) => {
-        const candidateSkill = candidateSkills.find(
-          (skill) => skill.id === requiredSkill.id,
-        );
-
-        if (!candidateSkill) {
-          return false;
-        }
-
-        return (
-          Number(candidateSkill.score || 0) >=
-          Number(requiredSkill.requiredScore || 50)
-        );
-      })
-      .map((skill) => skill.name);
-  }
-
-  // ============================================================
-  // GET MISSING / WEAK SKILLS
-  // ============================================================
-
-  function getSkillGaps(candidateSkills, requiredSkills) {
-    if (!candidateSkills) {
-      return requiredSkills.map((skill) => skill.name);
-    }
-
-    return requiredSkills
-      .filter((requiredSkill) => {
-        const candidateSkill = candidateSkills.find(
-          (skill) => skill.id === requiredSkill.id,
-        );
-
-        if (!candidateSkill) {
-          return true;
-        }
-
-        return (
-          Number(candidateSkill.score || 0) <
-          Number(requiredSkill.requiredScore || 50)
-        );
-      })
-      .map((skill) => skill.name);
-  }
-
-  // ============================================================
   // LOAD CANDIDATES
   // ============================================================
 
@@ -159,30 +65,24 @@ function Candidates() {
         const candidates = data.candidates || [];
 
         const ranked = candidates
-          .map((candidate) => {
-            const match = calculateCandidateMatch(
-              candidate.skills,
-              data.required_skills || [],
-            );
+          .map((candidate) => ({
+            ...candidate,
 
-            const matchedSkills = getMatchingSkills(
-              candidate.skills,
-              data.required_skills || [],
-            );
+            match: candidate.match_score ?? 0,
 
-            const missingSkills = getSkillGaps(
-              candidate.skills,
-              data.required_skills || [],
-            );
+            matchedSkills: candidate.matched_skills ?? [],
 
-            return {
-              ...candidate,
-              match,
-              matchedSkills,
-              missingSkills,
-            };
-          })
-          .sort((a, b) => b.match - a.match);
+            partialMatches: candidate.partial_matches ?? [],
+
+            missingSkills: candidate.missing_skills ?? [],
+
+            skillGaps: candidate.skillGaps ?? [],
+
+            matchLevel: candidate.match_level ?? "Low",
+
+            matchExplanation: candidate.match_explanation ?? "",
+          }))
+          .sort((a, b) => b.match_score - a.match_score);
 
         setRankedCandidates(ranked);
       } catch (error) {
@@ -422,13 +322,15 @@ function Candidates() {
                 <div className="flex flex-col md:flex-row md:justify-between gap-5">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-                      {candidate.name.charAt(0).toUpperCase()}
+                      {(candidate.name || "U")
+  .charAt(0)
+  .toUpperCase()}
                     </div>
 
                     <div>
                       <div className="flex items-center gap-3">
                         <h2 className="text-lg font-semibold">
-                          {candidate.name}
+                          {candidate.name || "Unknown Candidate"}
                         </h2>
 
                         {index === 0 && (
@@ -455,14 +357,20 @@ function Candidates() {
 
                     <p
                       className={`text-3xl font-bold mt-1 ${
-                        candidate.match >= 75
+                        candidate.match_score >= 85
                           ? "text-green-600"
-                          : candidate.match >= 50
-                            ? "text-yellow-600"
-                            : "text-red-500"
+                          : candidate.match_score >= 70
+                            ? "text-blue-600"
+                            : candidate.match_score >= 50
+                              ? "text-yellow-600"
+                              : "text-red-500"
                       }`}
                     >
-                      {candidate.match}%
+                      {candidate.match_score}%
+                    </p>
+
+                    <p className="text-xs text-slate-500 mt-1">
+                      {candidate.matchLevel}
                     </p>
                   </div>
                 </div>
@@ -476,7 +384,7 @@ function Candidates() {
                     <div
                       className="h-full bg-blue-600 rounded-full"
                       style={{
-                        width: `${candidate.match}%`,
+                        width: `${candidate.match_score}%`,
                       }}
                     />
                   </div>
@@ -485,8 +393,7 @@ function Candidates() {
                 {/* ============================================
                       SKILLS
                       ============================================ */}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-6">
                   {/* Matching Skills */}
 
                   <div>
@@ -500,15 +407,44 @@ function Candidates() {
                       {candidate.matchedSkills.length > 0 ? (
                         candidate.matchedSkills.map((skill) => (
                           <span
-                            key={skill}
+                            key={skill.id}
                             className="px-3 py-1 bg-green-50 text-green-700 text-xs rounded-full"
                           >
-                            ✓ {skill}
+                            ✓ {skill.name}
                           </span>
                         ))
                       ) : (
                         <p className="text-sm text-slate-400">
-                          No strong skill matches.
+                          No full matches.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Partial Matches */}
+
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <AlertCircle size={17} className="text-yellow-500" />
+
+                      <p className="text-sm font-medium">Partial Matches</p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {candidate.partialMatches.length > 0 ? (
+                        candidate.partialMatches.map((skill) => (
+                          <span
+                            key={skill.id}
+                            className="px-3 py-1 bg-yellow-50 text-yellow-700 text-xs rounded-full"
+                          >
+                            ◐ {skill.name}
+                            {" · "}
+                            {skill.student_score}/{skill.required_score}
+                          </span>
+                        ))
+                      ) : (
+                        <p className="text-sm text-slate-400">
+                          No partial matches.
                         </p>
                       )}
                     </div>
@@ -524,24 +460,39 @@ function Candidates() {
                     </div>
 
                     <div className="flex flex-wrap gap-2 mt-3">
-                      {candidate.missingSkills.length > 0 ? (
-                        candidate.missingSkills.map((skill) => (
+                      {candidate.skillGaps.length > 0 ? (
+                        candidate.skillGaps.map((skill) => (
                           <span
-                            key={skill}
-                            className="px-3 py-1 bg-red-50 text-red-600 text-xs rounded-full"
+                            key={skill.id}
+                            className={`px-3 py-1 text-xs rounded-full ${
+                              skill.severity === "Critical"
+                                ? "bg-red-100 text-red-700"
+                                : skill.severity === "High"
+                                  ? "bg-orange-50 text-orange-700"
+                                  : "bg-yellow-50 text-yellow-700"
+                            }`}
                           >
-                            ! {skill}
+                            ! {skill.name} · Gap {skill.gap} · {skill.severity}
                           </span>
                         ))
                       ) : (
-                        <p className="text-sm text-green-600">
-                          No major skill gaps.
-                        </p>
+                        <p className="text-sm text-green-600">No skill gaps.</p>
                       )}
                     </div>
                   </div>
                 </div>
 
+                {candidate.matchExplanation && (
+                  <div className="mt-5 bg-slate-50 border rounded-xl p-4">
+                    <p className="text-xs font-medium text-slate-500 uppercase">
+                      Match Explanation
+                    </p>
+
+                    <p className="text-sm text-slate-600 mt-1">
+                      {candidate.matchExplanation}
+                    </p>
+                  </div>
+                )}
                 {/* ============================================
                       APPLICATION STATUS
                       ============================================ */}

@@ -3,6 +3,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from ..services.matching import calculate_opportunity_match
 
 from ..database import get_db
 from ..models import (
@@ -29,6 +30,11 @@ router = APIRouter(
 # SCHEMAS
 # ============================================================
 
+class OpportunitySkillRequirement(BaseModel):
+    skill_id: int
+    required_score: int = 50
+
+
 class OpportunityCreate(BaseModel):
 
     title: str
@@ -45,8 +51,8 @@ class OpportunityCreate(BaseModel):
 
     deadline: date | None = None
 
-    skill_ids: list[int] = []
-    
+    skill_requirements: list[OpportunitySkillRequirement] = []
+
     salary_min_lpa: float | None = None
     salary_max_lpa: float | None = None
 
@@ -139,13 +145,21 @@ def create_opportunity(
 
     db.flush()
 
-
-    for skill_id in request.skill_ids:
+    for requirement in request.skill_requirements:
+        if not 0 <= requirement.required_score <= 100:
+            db.rollback()
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Required score for skill ID "
+                    f"{requirement.skill_id} must be between 0 and 100."
+                ),
+            )
 
         skill = (
             db.query(Skill)
             .filter(
-                Skill.id == skill_id
+                Skill.id == requirement.skill_id
             )
             .first()
         )
@@ -154,16 +168,19 @@ def create_opportunity(
             db.rollback()
             raise HTTPException(
                 status_code=404,
-                detail=f"Skill with ID {skill_id} not found."
+                detail=(
+                    f"Skill with ID "
+                    f"{requirement.skill_id} not found."
+                ),
             )
 
         opportunity_skill = OpportunitySkill(
             opportunity_id=opportunity.id,
             skill_id=skill.id,
+            required_score=requirement.required_score,
         )
 
         db.add(opportunity_skill)
-
 
     db.commit()
 
@@ -264,9 +281,9 @@ def get_my_opportunities(
         # ----------------------------------------------------
 
         required_skills = (
-            db.query(Skill)
+            db.query(OpportunitySkill, Skill)
             .join(
-                OpportunitySkill,
+                Skill,
                 OpportunitySkill.skill_id ==
                 Skill.id
             )
@@ -278,8 +295,13 @@ def get_my_opportunities(
         )
 
         skills = [
-            skill.name
-            for skill in required_skills
+            {
+                "id": skill.id,
+                "name": skill.name,
+                "category": skill.category,
+                "requiredScore": opportunity_skill.required_score,
+            }
+            for opportunity_skill, skill in required_skills
         ]
 
         # ----------------------------------------------------
@@ -396,7 +418,7 @@ class OpportunityUpdate(BaseModel):
     deadline: date | None = None
     salary_min_lpa: float | None = None
     salary_max_lpa: float | None = None
-    skill_ids: list[int] | None = None
+    skill_requirements: list[OpportunitySkillRequirement] | None = None
 
 @router.patch("/opportunities/{opportunity_id}/status")
 def update_opportunity_status(
@@ -557,53 +579,83 @@ def update_opportunity(
     # Update required skills
     # --------------------------------------------------------
 
-    if request.skill_ids is not None:
+    if request.skill_requirements is not None:
 
-        # Validate all skill IDs first
+        # --------------------------------------------------------
+        # Validate required scores
+        # --------------------------------------------------------
+
+        for requirement in request.skill_requirements:
+
+            if not 0 <= requirement.required_score <= 100:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Required score for skill ID "
+                        f"{requirement.skill_id} must be between 0 and 100."
+                    ),
+                )
+
+        # --------------------------------------------------------
+        # Validate all skill IDs
+        # --------------------------------------------------------
+
+        skill_ids = [
+            requirement.skill_id
+            for requirement in request.skill_requirements
+        ]
+
         skills = (
             db.query(Skill)
             .filter(
-                Skill.id.in_(request.skill_ids)
+                Skill.id.in_(skill_ids)
             )
             .all()
         )
 
-        found_skill_ids = {
-            skill.id
-            for skill in skills
-        }
+    found_skill_ids = {
+        skill.id
+        for skill in skills
+    }
 
-        invalid_skill_ids = [
-            skill_id
-            for skill_id in request.skill_ids
-            if skill_id not in found_skill_ids
-        ]
+    invalid_skill_ids = [
+        skill_id
+        for skill_id in skill_ids
+        if skill_id not in found_skill_ids
+    ]
 
-        if invalid_skill_ids:
-            raise HTTPException(
-                status_code=404,
-                detail=(
-                    f"Skill IDs not found: "
-                    f"{invalid_skill_ids}"
-                ),
-            )
-
-        # Remove existing skill mappings
-        db.query(OpportunitySkill).filter(
-            OpportunitySkill.opportunity_id == opportunity.id
-        ).delete(
-            synchronize_session=False
+    if invalid_skill_ids:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"Skill IDs not found: "
+                f"{invalid_skill_ids}"
+            ),
         )
 
-        # Add new skill mappings
-        for skill_id in request.skill_ids:
+    # --------------------------------------------------------
+    # Remove existing mappings
+    # --------------------------------------------------------
 
-            db.add(
-                OpportunitySkill(
-                    opportunity_id=opportunity.id,
-                    skill_id=skill_id,
-                )
+    db.query(OpportunitySkill).filter(
+        OpportunitySkill.opportunity_id == opportunity.id
+    ).delete(
+        synchronize_session=False
+    )
+
+    # --------------------------------------------------------
+    # Add new mappings with required scores
+    # --------------------------------------------------------
+
+    for requirement in request.skill_requirements:
+
+        db.add(
+            OpportunitySkill(
+                opportunity_id=opportunity.id,
+                skill_id=requirement.skill_id,
+                required_score=requirement.required_score,
             )
+        )
 
     # --------------------------------------------------------
     # Save changes
@@ -618,16 +670,16 @@ def update_opportunity(
     # --------------------------------------------------------
 
     updated_skills = (
-        db.query(Skill)
-        .join(
-            OpportunitySkill,
-            OpportunitySkill.skill_id == Skill.id
-        )
-        .filter(
-            OpportunitySkill.opportunity_id == opportunity.id
-        )
-        .all()
+    db.query(OpportunitySkill, Skill)
+    .join(
+        Skill,
+        OpportunitySkill.skill_id == Skill.id
     )
+    .filter(
+        OpportunitySkill.opportunity_id == opportunity.id
+    )
+    .all()
+)
 
     return {
         "message": "Opportunity updated successfully",
@@ -646,13 +698,14 @@ def update_opportunity(
             "salary_max_lpa": opportunity.salary_max_lpa,
             "status": opportunity.status,
             "skills": [
-                {
-                    "id": skill.id,
-                    "name": skill.name,
-                    "category": skill.category,
-                }
-                for skill in updated_skills
-            ],
+    {
+        "id": skill.id,
+        "name": skill.name,
+        "category": skill.category,
+        "requiredScore": opportunity_skill.required_score,
+    }
+    for opportunity_skill, skill in updated_skills
+],
         },
     }
 
@@ -731,89 +784,19 @@ def get_dashboard_stats(
     # -----------------------------------------
     # Calculate average candidate match
     # -----------------------------------------
-
     match_scores = []
 
     for application in applications:
 
-        opportunity = next(
-            (
-                opportunity
-                for opportunity in opportunities
-                if opportunity.id ==
-                application.opportunity_id
-            ),
-            None
+        match_result = calculate_opportunity_match(
+            db=db,
+            student_id=application.student_id,
+            opportunity_id=application.opportunity_id,
         )
 
-        if not opportunity:
-            continue
-
-        required_skills = (
-            db.query(OpportunitySkill, Skill)
-            .join(
-                Skill,
-                OpportunitySkill.skill_id ==
-                Skill.id
-            )
-            .filter(
-                OpportunitySkill.opportunity_id ==
-                opportunity.id
-            )
-            .all()
+        match_scores.append(
+            match_result["match_score"]
         )
-
-        if not required_skills:
-            continue
-
-        student_skills = (
-            db.query(StudentSkill)
-            .filter(
-                StudentSkill.student_id ==
-                application.student_id
-            )
-            .all()
-        )
-
-        student_skill_map = {
-            skill.skill_id: skill.score
-            for skill in student_skills
-        }
-
-        skill_scores = []
-
-        for opportunity_skill, skill in required_skills:
-
-            candidate_score = (
-                student_skill_map.get(
-                    skill.id,
-                    0
-                )
-            )
-
-            required_score = 50
-
-            if candidate_score >= required_score:
-                percentage = 100
-            else:
-                percentage = (
-                    candidate_score /
-                    required_score
-                ) * 100
-
-            skill_scores.append(
-                percentage
-            )
-
-        if skill_scores:
-            candidate_match = (
-                sum(skill_scores) /
-                len(skill_scores)
-            )
-
-            match_scores.append(
-                candidate_match
-            )
 
     average_match = (
         round(
@@ -898,28 +881,28 @@ def get_candidates(
     # --------------------------------------------------------
 
     required_skills = (
-        db.query(Skill)
-        .join(
-            OpportunitySkill,
-            OpportunitySkill.skill_id == Skill.id,
-        )
-        .filter(
-            OpportunitySkill.opportunity_id
-            == opportunity.id
-        )
-        .all()
+    db.query(OpportunitySkill, Skill)
+    .join(
+        Skill,
+        OpportunitySkill.skill_id == Skill.id,
     )
+    .filter(
+        OpportunitySkill.opportunity_id
+        == opportunity.id
+    )
+    .all()
+)
 
 
     required_skill_data = [
-        {
-            "id": skill.id,
-            "name": skill.name,
-            "category": skill.category,
-            "requiredScore": 50,
-        }
-        for skill in required_skills
-    ]
+    {
+        "id": skill.id,
+        "name": skill.name,
+        "category": skill.category,
+        "requiredScore": opportunity_skill.required_score,
+    }
+    for opportunity_skill, skill in required_skills
+]
 
 
     # --------------------------------------------------------
@@ -988,28 +971,53 @@ def get_candidates(
             in student_skills
         ]
 
-
+        match_result = calculate_opportunity_match(
+    db=db,
+    student_id=student.id,
+    opportunity_id=opportunity.id,
+)
         result.append({
-            "application_id": application.id,
+    "application_id": application.id,
 
-            "student_id": student.id,
+    "student_id": student.id,
 
-            "name": user.name,
+    "name": user.name,
 
-            "email": user.email,
+    "email": user.email,
 
-            "career_goal": student.career_goal,
+    "career_goal": student.career_goal,
 
-            "readiness": student.readiness,
+    "readiness": student.readiness,
 
-            "application_status":
-                application.status,
+    "application_status":
+        application.status,
 
-            "applied_at":
-                application.applied_at,
+    "applied_at":
+        application.applied_at,
 
-            "skills": skills,
-        })
+    "skills": skills,
+
+    "match_score":
+        match_result["match_score"],
+
+    "match_level":
+        match_result["match_level"],
+
+    "matched_skills":
+        match_result["matched_skills"],
+
+    "partial_matches":
+        match_result["partial_matches"],
+
+    "missing_skills":
+        match_result["missing_skills"],
+
+    "skill_gaps":
+        match_result["skill_gaps"],
+
+    "match_explanation":
+        match_result["explanation"],
+})
 
 
     # --------------------------------------------------------
