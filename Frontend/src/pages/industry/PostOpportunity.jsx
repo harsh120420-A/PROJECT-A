@@ -161,8 +161,6 @@ function PostOpportunity() {
     // Convert frontend skills to database skill IDs
     // ----------------------------------------------------------
 
-    const skillIds = skills.map((skill) => SKILL_ID_MAP[skill.name]);
-
     if (Number(form.salary_min_lpa) > Number(form.salary_max_lpa)) {
       setMessage("Minimum salary cannot be greater than maximum salary.");
 
@@ -186,7 +184,10 @@ function PostOpportunity() {
         salary_min_lpa: Number(form.salary_min_lpa),
         salary_max_lpa: Number(form.salary_max_lpa),
 
-        skill_ids: skillIds,
+        skill_requirements: skills.map((skill) => ({
+  skill_id: SKILL_ID_MAP[skill.name],
+  required_score: skill.requiredScore,
+})),
       });
 
       console.log("Opportunity created:", response);

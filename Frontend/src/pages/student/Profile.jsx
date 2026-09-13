@@ -4,28 +4,84 @@ import { apiGet, apiPut } from "../../services/api";
 
 function Profile() {
   const [profile, setProfile] = useState({
-  name: "",
-  email: "",
-  phone: "",
-  college: "",
-  degree: "",
-  branch: "",
-  graduationYear: "",
-  careerGoal: "",
-  preferredLocation: ""
-});
+    name: "",
+    email: "",
+    phone: "",
+    college: "",
+    degree: "",
+    branch: "",
+    graduationYear: "",
+    careerGoal: "",
+    preferredLocation: "",
+  });
 
-const [loading, setLoading] = useState(true);
-const [error, setError] = useState("");
-const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-  async function loadProfile() {
+    async function loadProfile() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const data = await apiGet("/student/profile");
+
+        setProfile({
+          name: data.name || "",
+          email: data.email || "",
+          phone: data.phone || "",
+          college: data.college || "",
+          degree: data.degree || "",
+          branch: data.branch || "",
+          graduationYear: data.graduation_year
+            ? String(data.graduation_year)
+            : "",
+          careerGoal: data.career_goal || "",
+          preferredLocation: data.preferred_location || "",
+        });
+      } catch (err) {
+        console.error("Profile loading error:", err);
+        setError(err.message || "Unable to load profile.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadProfile();
+  }, []);
+
+  function handleChange(e) {
+    const { name, value } = e.target;
+
+    setProfile((previousProfile) => ({
+      ...previousProfile,
+      [name]: value,
+    }));
+
+    setSaved(false);
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+
     try {
-      setLoading(true);
+      setSaved(false);
       setError("");
 
-      const data = await apiGet("/student/profile");
+      const data = await apiPut("/student/profile", {
+        name: profile.name.trim(),
+        email: profile.email.trim(),
+        phone: profile.phone.trim() || null,
+        college: profile.college.trim() || null,
+        degree: profile.degree || null,
+        branch: profile.branch.trim() || null,
+        graduation_year: profile.graduationYear
+          ? Number(profile.graduationYear)
+          : null,
+        career_goal: profile.careerGoal || null,
+        preferred_location: profile.preferredLocation.trim() || null,
+      });
 
       setProfile({
         name: data.name || "",
@@ -38,72 +94,15 @@ const [saved, setSaved] = useState(false);
           ? String(data.graduation_year)
           : "",
         careerGoal: data.career_goal || "",
-        preferredLocation: data.preferred_location || ""
+        preferredLocation: data.preferred_location || "",
       });
+
+      setSaved(true);
     } catch (err) {
-      console.error("Profile loading error:", err);
-      setError(err.message || "Unable to load profile.");
-    } finally {
-      setLoading(false);
+      console.error("Profile save error:", err);
+      setError(err.message || "Unable to save profile.");
     }
   }
-
-  loadProfile();
-}, []);
-
-  function handleChange(e) {
-    const { name, value } = e.target;
-
-    setProfile((previousProfile) => ({
-      ...previousProfile,
-      [name]: value
-    }));
-
-    setSaved(false);
-  }
-
-  async function handleSubmit(e) {
-  e.preventDefault();
-
-  try {
-    setSaved(false);
-    setError("");
-
-    const data = await apiPut("/student/profile", {
-      name: profile.name.trim(),
-      email: profile.email.trim(),
-      phone: profile.phone.trim() || null,
-      college: profile.college.trim() || null,
-      degree: profile.degree || null,
-      branch: profile.branch.trim() || null,
-      graduation_year: profile.graduationYear
-        ? Number(profile.graduationYear)
-        : null,
-      career_goal: profile.careerGoal || null,
-      preferred_location:
-        profile.preferredLocation.trim() || null
-    });
-
-    setProfile({
-      name: data.name || "",
-      email: data.email || "",
-      phone: data.phone || "",
-      college: data.college || "",
-      degree: data.degree || "",
-      branch: data.branch || "",
-      graduationYear: data.graduation_year
-        ? String(data.graduation_year)
-        : "",
-      careerGoal: data.career_goal || "",
-      preferredLocation: data.preferred_location || ""
-    });
-
-    setSaved(true);
-  } catch (err) {
-    console.error("Profile save error:", err);
-    setError(err.message || "Unable to save profile.");
-  }
-}
 
   const requiredFields = [
     "name",
@@ -112,76 +111,60 @@ const [saved, setSaved] = useState(false);
     "degree",
     "branch",
     "graduationYear",
-    "careerGoal"
+    "careerGoal",
   ];
 
   const completedFields = requiredFields.filter(
-    (field) =>
-      profile[field] &&
-      profile[field].toString().trim() !== ""
+    (field) => profile[field] && profile[field].toString().trim() !== "",
   ).length;
 
   const completionPercentage = Math.round(
-    (completedFields / requiredFields.length) * 100
+    (completedFields / requiredFields.length) * 100,
   );
 
   if (loading) {
-  return (
-    <StudentLayout>
-      <div className="p-8">
-        <p className="text-sm text-blue-600 font-medium">
-          PROFILE
-        </p>
+    return (
+      <StudentLayout>
+        <div className="p-8">
+          <p className="text-sm text-blue-600 font-medium">PROFILE</p>
 
-        <h1 className="text-3xl font-bold text-slate-900 mt-2">
-          Student Profile
-        </h1>
+          <h1 className="text-3xl font-bold text-slate-900 mt-2">
+            Student Profile
+          </h1>
 
-        <p className="text-slate-500 mt-2">
-          Loading your profile...
-        </p>
-      </div>
-    </StudentLayout>
-  );
-}
-
-if (error && !profile.name) {
-  return (
-    <StudentLayout>
-      <div className="p-8">
-        <p className="text-sm text-blue-600 font-medium">
-          PROFILE
-        </p>
-
-        <h1 className="text-3xl font-bold text-slate-900 mt-2">
-          Student Profile
-        </h1>
-
-        <div className="mt-8 bg-red-50 border border-red-200 rounded-xl p-6">
-          <p className="font-medium text-red-600">
-            Unable to load profile
-          </p>
-
-          <p className="text-sm text-red-500 mt-1">
-            {error}
-          </p>
+          <p className="text-slate-500 mt-2">Loading your profile...</p>
         </div>
-      </div>
-    </StudentLayout>
-  );
-}
+      </StudentLayout>
+    );
+  }
+
+  if (error && !profile.name) {
+    return (
+      <StudentLayout>
+        <div className="p-8">
+          <p className="text-sm text-blue-600 font-medium">PROFILE</p>
+
+          <h1 className="text-3xl font-bold text-slate-900 mt-2">
+            Student Profile
+          </h1>
+
+          <div className="mt-8 bg-red-50 border border-red-200 rounded-xl p-6">
+            <p className="font-medium text-red-600">Unable to load profile</p>
+
+            <p className="text-sm text-red-500 mt-1">{error}</p>
+          </div>
+        </div>
+      </StudentLayout>
+    );
+  }
 
   return (
     <StudentLayout>
       <div className="p-8">
-
         {/* Page Header */}
 
         <div className="mb-8">
-
-          <p className="text-sm text-blue-600 font-medium">
-            PROFILE
-          </p>
+          <p className="text-sm text-blue-600 font-medium">PROFILE</p>
 
           <h1 className="text-3xl font-bold text-slate-900 mt-2">
             Student Profile
@@ -190,25 +173,18 @@ if (error && !profile.name) {
           <p className="text-slate-500 mt-2">
             Keep your academic and career information up to date.
           </p>
-
         </div>
 
         {/* Profile Summary */}
 
         <div className="bg-white border rounded-2xl p-6 mb-6">
-
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-
             <div className="flex items-center gap-4">
-
               <div className="w-16 h-16 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-2xl font-bold">
-                {profile.name
-                  ? profile.name.charAt(0).toUpperCase()
-                  : "S"}
+                {profile.name ? profile.name.charAt(0).toUpperCase() : "S"}
               </div>
 
               <div>
-
                 <h2 className="text-xl font-semibold">
                   {profile.name || "Student"}
                 </h2>
@@ -218,64 +194,46 @@ if (error && !profile.name) {
                     ? `Aspiring ${profile.careerGoal}`
                     : "Career goal not set"}
                 </p>
-
               </div>
-
             </div>
 
             <div className="w-full md:w-64">
-
               <div className="flex justify-between text-sm mb-2">
-
-                <span className="text-slate-500">
-                  Profile Completion
-                </span>
+                <span className="text-slate-500">Profile Completion</span>
 
                 <span className="font-semibold text-blue-600">
                   {completionPercentage}%
                 </span>
-
               </div>
 
               <div className="h-2 bg-slate-100 rounded-full">
-
                 <div
                   className="h-full bg-blue-600 rounded-full transition-all"
                   style={{
-                    width: `${completionPercentage}%`
+                    width: `${completionPercentage}%`,
                   }}
                 />
-
               </div>
-
             </div>
-
           </div>
-
         </div>
 
         {/* Profile Form */}
 
         <form onSubmit={handleSubmit}>
-
           {/* Personal Information */}
 
           <div className="bg-white border rounded-2xl p-6 mb-6">
-
-            <h2 className="text-xl font-semibold">
-              Personal Information
-            </h2>
+            <h2 className="text-xl font-semibold">Personal Information</h2>
 
             <p className="text-sm text-slate-500 mt-1">
               Basic information about you.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
-
               {/* Name */}
 
               <div>
-
                 <label className="block text-sm font-medium mb-2">
                   Full Name
                 </label>
@@ -289,16 +247,12 @@ if (error && !profile.name) {
                   className="w-full border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />
-
               </div>
 
               {/* Email */}
 
               <div>
-
-                <label className="block text-sm font-medium mb-2">
-                  Email
-                </label>
+                <label className="block text-sm font-medium mb-2">Email</label>
 
                 <input
                   type="email"
@@ -309,13 +263,11 @@ if (error && !profile.name) {
                   className="w-full border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />
-
               </div>
 
               {/* Phone */}
 
               <div>
-
                 <label className="block text-sm font-medium mb-2">
                   Phone Number
                 </label>
@@ -328,31 +280,23 @@ if (error && !profile.name) {
                   placeholder="+91 XXXXX XXXXX"
                   className="w-full border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
                 />
-
               </div>
-
             </div>
-
           </div>
 
           {/* Academic Information */}
 
           <div className="bg-white border rounded-2xl p-6 mb-6">
-
-            <h2 className="text-xl font-semibold">
-              Academic Information
-            </h2>
+            <h2 className="text-xl font-semibold">Academic Information</h2>
 
             <p className="text-sm text-slate-500 mt-1">
               Add your current academic details.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
-
               {/* College */}
 
               <div>
-
                 <label className="block text-sm font-medium mb-2">
                   College / Institution
                 </label>
@@ -366,16 +310,12 @@ if (error && !profile.name) {
                   className="w-full border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />
-
               </div>
 
               {/* Degree */}
 
               <div>
-
-                <label className="block text-sm font-medium mb-2">
-                  Degree
-                </label>
+                <label className="block text-sm font-medium mb-2">Degree</label>
 
                 <select
                   name="degree"
@@ -384,47 +324,27 @@ if (error && !profile.name) {
                   className="w-full border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   required
                 >
+                  <option value="">Select degree</option>
 
-                  <option value="">
-                    Select degree
-                  </option>
+                  <option value="B.Tech">B.Tech</option>
 
-                  <option value="B.Tech">
-                    B.Tech
-                  </option>
+                  <option value="B.E.">B.E.</option>
 
-                  <option value="B.E.">
-                    B.E.
-                  </option>
+                  <option value="B.Sc">B.Sc</option>
 
-                  <option value="B.Sc">
-                    B.Sc
-                  </option>
+                  <option value="BCA">BCA</option>
 
-                  <option value="BCA">
-                    BCA
-                  </option>
+                  <option value="M.Tech">M.Tech</option>
 
-                  <option value="M.Tech">
-                    M.Tech
-                  </option>
+                  <option value="MCA">MCA</option>
 
-                  <option value="MCA">
-                    MCA
-                  </option>
-
-                  <option value="Other">
-                    Other
-                  </option>
-
+                  <option value="Other">Other</option>
                 </select>
-
               </div>
 
               {/* Branch */}
 
               <div>
-
                 <label className="block text-sm font-medium mb-2">
                   Branch / Specialization
                 </label>
@@ -438,13 +358,11 @@ if (error && !profile.name) {
                   className="w-full border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />
-
               </div>
 
               {/* Graduation Year */}
 
               <div>
-
                 <label className="block text-sm font-medium mb-2">
                   Graduation Year
                 </label>
@@ -456,57 +374,35 @@ if (error && !profile.name) {
                   className="w-full border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   required
                 >
+                  <option value="">Select year</option>
 
-                  <option value="">
-                    Select year
-                  </option>
+                  <option value="2026">2026</option>
 
-                  <option value="2026">
-                    2026
-                  </option>
+                  <option value="2027">2027</option>
 
-                  <option value="2027">
-                    2027
-                  </option>
+                  <option value="2028">2028</option>
 
-                  <option value="2028">
-                    2028
-                  </option>
+                  <option value="2029">2029</option>
 
-                  <option value="2029">
-                    2029
-                  </option>
-
-                  <option value="2030">
-                    2030
-                  </option>
-
+                  <option value="2030">2030</option>
                 </select>
-
               </div>
-
             </div>
-
           </div>
 
           {/* Career Information */}
 
           <div className="bg-white border rounded-2xl p-6 mb-6">
-
-            <h2 className="text-xl font-semibold">
-              Career Information
-            </h2>
+            <h2 className="text-xl font-semibold">Career Information</h2>
 
             <p className="text-sm text-slate-500 mt-1">
               Help us understand your career preferences.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
-
               {/* Career Goal */}
 
               <div>
-
                 <label className="block text-sm font-medium mb-2">
                   Career Goal
                 </label>
@@ -518,47 +414,31 @@ if (error && !profile.name) {
                   className="w-full border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   required
                 >
+                  <option value="">Select career goal</option>
 
-                  <option value="">
-                    Select career goal
-                  </option>
+                  <option value="Data Scientist">Data Scientist</option>
 
-                  <option value="Data Scientist">
-                    Data Scientist
-                  </option>
+                  <option value="Data Analyst">Data Analyst</option>
 
-                  <option value="Data Analyst">
-                    Data Analyst
-                  </option>
-
-                  <option value="Software Engineer">
-                    Software Engineer
-                  </option>
+                  <option value="Software Engineer">Software Engineer</option>
 
                   <option value="Machine Learning Engineer">
                     Machine Learning Engineer
                   </option>
 
-                  <option value="Business Analyst">
-                    Business Analyst
-                  </option>
+                  <option value="Business Analyst">Business Analyst</option>
 
-                  <option value="Cloud Engineer">
-                    Cloud Engineer
-                  </option>
+                  <option value="Cloud Engineer">Cloud Engineer</option>
 
                   <option value="Cybersecurity Analyst">
                     Cybersecurity Analyst
                   </option>
-
                 </select>
-
               </div>
 
               {/* Location */}
 
               <div>
-
                 <label className="block text-sm font-medium mb-2">
                   Preferred Location
                 </label>
@@ -571,21 +451,16 @@ if (error && !profile.name) {
                   placeholder="Bangalore / Remote"
                   className="w-full border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
                 />
-
               </div>
-
             </div>
-
           </div>
 
           {/* Save */}
 
           <div className="flex items-center justify-end gap-4">
-                  {error && (
-  <p className="text-sm text-red-600 font-medium">
-    {error}
-  </p>
-)}
+            {error && (
+              <p className="text-sm text-red-600 font-medium">{error}</p>
+            )}
             {saved && (
               <p className="text-sm text-green-600 font-medium">
                 Profile saved successfully.
@@ -598,11 +473,8 @@ if (error && !profile.name) {
             >
               Save Profile
             </button>
-
           </div>
-
         </form>
-
       </div>
     </StudentLayout>
   );

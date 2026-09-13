@@ -24,3 +24,9 @@ class OpportunitySkill(Base):
         ForeignKey("skills.id"),
         nullable=False
     )
+
+    required_score = Column(
+        Integer,
+        default=50,
+        nullable=False
+    )

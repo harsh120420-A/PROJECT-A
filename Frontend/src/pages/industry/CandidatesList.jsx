@@ -259,18 +259,18 @@ function CandidatesList() {
 
                     <div className="flex flex-wrap gap-2 mt-4">
 
-                      {(opportunity.skills || []).map(
-                        (skill) => (
-
-                          <span
-                            key={skill}
-                            className="px-3 py-1 bg-slate-100 text-slate-600 text-xs rounded-full"
-                          >
-                            {skill}
-                          </span>
-
-                        )
-                      )}
+                      {<div className="flex flex-wrap gap-2 mt-4">
+  {(opportunity.skills || []).map((skill, index) => (
+    <span
+      key={skill?.id ?? `${opportunity.id}-skill-${index}`}
+      className="px-3 py-1 bg-slate-100 text-slate-600 text-xs rounded-full"
+    >
+      {skill?.name || "Unknown Skill"}
+      {skill?.requiredScore !== undefined &&
+        ` · ${skill.requiredScore}%`}
+    </span>
+  ))}
+</div>}
 
                     </div>
 

@@ -167,6 +167,45 @@ def get_students(
         .all()
     )
 
+    # --------------------------------------------------------
+    # Get active industry opportunities
+    # --------------------------------------------------------
+
+    opportunities = (
+        db.query(Opportunity)
+        .filter(
+            Opportunity.status == "Active"
+        )
+        .all()
+    )
+
+    # --------------------------------------------------------
+    # Build industry demand map
+    # --------------------------------------------------------
+
+    demand_counts = {}
+
+    for opportunity in opportunities:
+
+        required_skills = (
+            db.query(Skill)
+            .join(
+                OpportunitySkill,
+                OpportunitySkill.skill_id == Skill.id,
+            )
+            .filter(
+                OpportunitySkill.opportunity_id
+                == opportunity.id
+            )
+            .all()
+        )
+
+        for skill in required_skills:
+
+            demand_counts[skill.id] = (
+                demand_counts.get(skill.id, 0) + 1
+            )
+
     result = []
 
     for student, user in students:
@@ -191,27 +230,52 @@ def get_students(
             .all()
         )
 
-        skills = [
-            {
+        skills = []
+
+        for skill, student_skill in student_skills:
+
+            score = student_skill.score or 0
+
+            if score >= 70:
+                level = "Strong"
+
+            elif score >= 50:
+                level = "Developing"
+
+            else:
+                level = "Gap"
+
+            skills.append({
                 "id": skill.id,
                 "name": skill.name,
                 "category": skill.category,
-                "score": student_skill.score or 0,
-            }
-            for skill, student_skill
-            in student_skills
-        ]
+                "score": score,
+                "level": level,
+                "industry_demand":
+                    demand_counts.get(
+                        skill.id,
+                        0
+                    ),
+            })
 
         # ----------------------------------------------------
         # Skill gaps
-        #
-        # Target score = 70
         # ----------------------------------------------------
 
         gaps = [
-            skill["name"]
+            skill
             for skill in skills
             if skill["score"] < 70
+        ]
+
+        # ----------------------------------------------------
+        # Industry-relevant gaps
+        # ----------------------------------------------------
+
+        industry_gaps = [
+            skill
+            for skill in gaps
+            if skill["industry_demand"] > 0
         ]
 
         # ----------------------------------------------------
@@ -241,24 +305,54 @@ def get_students(
         )
 
         if readiness >= 75:
+
             status = "On Track"
+
         elif readiness >= 60:
+
             status = "Needs Attention"
+
         else:
+
             status = "At Risk"
 
         # ----------------------------------------------------
-        # Return student
+        # Sort skills
+        # ----------------------------------------------------
+
+        skills.sort(
+            key=lambda item: item["score"],
+            reverse=True,
+        )
+
+        gaps.sort(
+            key=lambda item: item["score"]
+        )
+
+        industry_gaps.sort(
+            key=lambda item: (
+                -item["industry_demand"],
+                item["score"],
+            )
+        )
+
+        # ----------------------------------------------------
+        # Return student intelligence
         # ----------------------------------------------------
 
         result.append({
-            "id": student.id,
 
-            "user_id": user.id,
+            "id":
+                student.id,
 
-            "name": user.name,
+            "user_id":
+                user.id,
 
-            "email": user.email,
+            "name":
+                user.name,
+
+            "email":
+                user.email,
 
             "career_goal":
                 student.career_goal,
@@ -266,17 +360,24 @@ def get_students(
             "readiness":
                 readiness,
 
+            "status":
+                status,
+
             "skills":
                 skills,
 
             "gaps":
                 gaps,
 
+            "industry_gaps":
+                industry_gaps,
+
             "internships":
                 internship_count,
 
-            "status":
-                status,
+            "industry_gap_count":
+                len(industry_gaps),
+
         })
 
     return result
@@ -467,6 +568,22 @@ def get_skill_analytics(
         item["average_score"],
         reverse=True,
     )
+    
+        # --------------------------------------------------------
+    # Institutional strengths
+    # --------------------------------------------------------
+
+    strongest_skills = analytics[:3]
+
+    # --------------------------------------------------------
+    # Priority development areas
+    # --------------------------------------------------------
+
+    priority_skills = sorted(
+        analytics,
+        key=lambda item:
+        item["average_score"]
+    )[:3]
 
     # --------------------------------------------------------
     # Overall average
@@ -658,26 +775,32 @@ def get_skill_analytics(
     # --------------------------------------------------------
 
     return {
-        "summary": {
-            "average_skill_score":
-                average_skill_score,
+    "summary": {
+        "average_skill_score":
+            average_skill_score,
 
-            "technical_readiness":
-                technical_readiness,
+        "technical_readiness":
+            technical_readiness,
 
-            "soft_skill_readiness":
-                soft_skill_readiness,
+        "soft_skill_readiness":
+            soft_skill_readiness,
 
-            "students_assessed":
-                total_assessed,
-        },
+        "students_assessed":
+            total_assessed,
+    },
 
-        "skills":
-            analytics,
+    "skills":
+        analytics,
 
-        "proficiency_distribution":
-            proficiency_distribution,
-    }
+    "strongest_skills":
+        strongest_skills,
+
+    "priority_skills":
+        priority_skills,
+
+    "proficiency_distribution":
+        proficiency_distribution,
+}
 
 # ============================================================
 # SKILL GAPS
@@ -792,7 +915,10 @@ def get_skill_gaps(
                 "average_score": average_score,
                 "target_score": 70,
                 "gap": gap,
-                "student_count": len(scores),
+                "student_count": sum(
+    1 for score in scores
+    if score < 70
+),
                 "priority": priority,
                 "recommendation": recommendation,
             })
@@ -821,13 +947,15 @@ def get_skill_gaps(
     )
 
     students_affected = len({
-        student_skill.student_id
-        for _, student_skill in skill_data
-        if any(
-            gap["id"] == student_skill.skill_id
-            for gap in gaps
-        )
-    })
+    student_skill.student_id
+    for _, student_skill in skill_data
+    if student_skill.score is not None
+    and student_skill.score < 70
+    and any(
+        gap["id"] == student_skill.skill_id
+        for gap in gaps
+    )
+})
 
     largest_gap = gaps[0] if gaps else None
 
@@ -917,18 +1045,6 @@ def get_industry_demand(
             demand_counts[skill.id]["count"] += 1
 
     # --------------------------------------------------------
-    # Maximum demand
-    # --------------------------------------------------------
-
-    max_demand = max(
-        (
-            data["count"]
-            for data in demand_counts.values()
-        ),
-        default=0,
-    )
-
-    # --------------------------------------------------------
     # Total students
     # --------------------------------------------------------
 
@@ -947,15 +1063,9 @@ def get_industry_demand(
 
         # Demand percentage relative to
         # the most demanded skill
-        if max_demand > 0:
-            demand_percentage = round(
-                (
-                    data["count"]
-                    / max_demand
-                ) * 100
-            )
-        else:
-            demand_percentage = 0
+        demand_percentage = round(
+    (data["count"] / len(opportunities)) * 100
+) if opportunities else 0
 
         # ----------------------------------------------------
         # Student skill records
@@ -970,21 +1080,19 @@ def get_industry_demand(
             .all()
         )
 
-        students_with_skill = sum(
+        students_meeting_target = sum(
             1
             for record in skill_records
-            if (record.score or 0) > 0
+            if (record.score or 0) >= 70
         )
 
-        if student_count > 0:
-            supply_percentage = round(
-                (
-                    students_with_skill
-                    / student_count
-                ) * 100
+        supply_percentage = (
+            round(
+                (students_meeting_target / student_count) * 100
             )
-        else:
-            supply_percentage = 0
+            if student_count > 0
+            else 0
+        )
 
         # ----------------------------------------------------
         # Average proficiency
@@ -1018,6 +1126,7 @@ def get_industry_demand(
             "supply": supply_percentage,
             "gap": gap,
             "average_score": average_score,
+            "students_meeting_target": students_meeting_target,
         })
 
     # --------------------------------------------------------
@@ -2494,3 +2603,343 @@ def get_companies(
         }
         for company in companies
     ]
+    
+# ============================================================
+# INSTITUTIONAL SKILL PRIORITY INTELLIGENCE
+# ============================================================
+
+@router.get("/institutional-priority")
+def get_institutional_priority(
+    current_user: User = Depends(
+        require_role("ACADEMIA")
+    ),
+    db: Session = Depends(get_db),
+):
+
+    # --------------------------------------------------------
+    # Verify academician
+    # --------------------------------------------------------
+
+    get_current_academician(
+        current_user,
+        db,
+    )
+
+    # --------------------------------------------------------
+    # Get all student skill scores
+    # --------------------------------------------------------
+
+    skill_data = (
+        db.query(
+            Skill,
+            StudentSkill,
+        )
+        .join(
+            StudentSkill,
+            StudentSkill.skill_id == Skill.id,
+        )
+        .all()
+    )
+
+    # --------------------------------------------------------
+    # Group student scores by skill
+    # --------------------------------------------------------
+
+    skill_scores = {}
+
+    for skill, student_skill in skill_data:
+
+        if skill.id not in skill_scores:
+
+            skill_scores[skill.id] = {
+                "id": skill.id,
+                "name": skill.name,
+                "category": skill.category,
+                "scores": [],
+            }
+
+        skill_scores[skill.id]["scores"].append(
+            student_skill.score or 0
+        )
+
+    # --------------------------------------------------------
+    # Get active industry opportunities
+    # --------------------------------------------------------
+
+    opportunities = (
+        db.query(Opportunity)
+        .filter(
+            Opportunity.status == "Active"
+        )
+        .all()
+    )
+
+    # --------------------------------------------------------
+    # Count industry demand by skill
+    # --------------------------------------------------------
+
+    demand_counts = {}
+
+    for opportunity in opportunities:
+
+        required_skills = (
+            db.query(Skill)
+            .join(
+                OpportunitySkill,
+                OpportunitySkill.skill_id == Skill.id,
+            )
+            .filter(
+                OpportunitySkill.opportunity_id
+                == opportunity.id
+            )
+            .all()
+        )
+
+        for skill in required_skills:
+
+            if skill.id not in demand_counts:
+
+                demand_counts[skill.id] = 0
+
+            demand_counts[skill.id] += 1
+
+    # --------------------------------------------------------
+    # Calculate demand percentage
+    # --------------------------------------------------------
+
+    total_opportunities = len(opportunities)
+
+    # --------------------------------------------------------
+    # Build institutional priority list
+    # --------------------------------------------------------
+
+    priorities = []
+
+    all_skill_ids = set(skill_scores.keys()) | set(
+        demand_counts.keys()
+    )
+
+    for skill_id in all_skill_ids:
+
+        student_data = skill_scores.get(
+            skill_id
+        )
+
+        if student_data:
+
+            scores = student_data["scores"]
+
+            average_score = round(
+                sum(scores) / len(scores)
+            ) if scores else 0
+
+            skill_name = student_data["name"]
+            category = student_data["category"]
+
+        else:
+
+            skill = (
+                db.query(Skill)
+                .filter(Skill.id == skill_id)
+                .first()
+            )
+
+            if not skill:
+                continue
+
+            average_score = 0
+            skill_name = skill.name
+            category = skill.category
+
+        # ----------------------------------------------------
+        # Student readiness gap
+        #
+        # Target readiness = 70
+        # ----------------------------------------------------
+
+        readiness_gap = max(
+            0,
+            70 - average_score
+        )
+
+        readiness_gap_percentage = round(
+            (readiness_gap / 70) * 100
+        ) if readiness_gap > 0 else 0
+
+        # ----------------------------------------------------
+        # Industry demand
+        # ----------------------------------------------------
+
+        opportunity_count = demand_counts.get(
+            skill_id,
+            0
+        )
+
+        demand_percentage = round(
+            (opportunity_count / total_opportunities) * 100
+        ) if total_opportunities > 0 else 0
+
+        # ----------------------------------------------------
+        # Institutional priority score
+        #
+        # 60% student readiness gap
+        # 40% industry demand
+        # ----------------------------------------------------
+
+        priority_score = round(
+            (
+                readiness_gap_percentage * 0.6
+            )
+            +
+            (
+                demand_percentage * 0.4
+            )
+        )
+
+        # ----------------------------------------------------
+        # Priority classification
+        # ----------------------------------------------------
+
+        if priority_score >= 70:
+
+            priority = "Critical"
+
+        elif priority_score >= 50:
+
+            priority = "High"
+
+        elif priority_score >= 30:
+
+            priority = "Moderate"
+
+        else:
+
+            priority = "Low"
+
+        # ----------------------------------------------------
+        # Institutional recommendation
+        # ----------------------------------------------------
+
+        if priority == "Critical":
+
+            recommendation = (
+                f"Launch immediate industry-aligned "
+                f"{skill_name} training and practical programs."
+            )
+
+        elif priority == "High":
+
+            recommendation = (
+                f"Introduce focused {skill_name} "
+                f"training with industry exposure."
+            )
+
+        elif priority == "Moderate":
+
+            recommendation = (
+                f"Strengthen {skill_name} through "
+                f"targeted learning and applied projects."
+            )
+
+        else:
+
+            recommendation = (
+                f"Continue monitoring {skill_name} "
+                f"readiness and industry demand."
+            )
+
+        priorities.append({
+
+            "id": skill_id,
+
+            "name": skill_name,
+
+            "category": category,
+
+            "average_score": average_score,
+
+            "readiness_gap": readiness_gap,
+
+            "readiness_gap_percentage":
+                readiness_gap_percentage,
+
+            "industry_demand":
+                demand_percentage,
+
+            "opportunity_count":
+                opportunity_count,
+
+            "priority_score":
+                priority_score,
+
+            "priority":
+                priority,
+
+            "recommendation":
+                recommendation,
+
+        })
+
+    # --------------------------------------------------------
+    # Highest priority first
+    # --------------------------------------------------------
+
+    priorities.sort(
+        key=lambda item: item["priority_score"],
+        reverse=True,
+    )
+
+    # --------------------------------------------------------
+    # Summary
+    # --------------------------------------------------------
+
+    critical_count = sum(
+        1
+        for item in priorities
+        if item["priority"] == "Critical"
+    )
+
+    high_count = sum(
+        1
+        for item in priorities
+        if item["priority"] == "High"
+    )
+
+    top_priority = (
+        priorities[0]
+        if priorities
+        else None
+    )
+
+    return {
+
+        "summary": {
+
+            "total_skills":
+                len(priorities),
+
+            "critical_skills":
+                critical_count,
+
+            "high_priority_skills":
+                high_count,
+
+            "top_priority_skill":
+                (
+                    top_priority["name"]
+                    if top_priority
+                    else None
+                ),
+
+            "top_priority_score":
+                (
+                    top_priority["priority_score"]
+                    if top_priority
+                    else 0
+                ),
+
+        },
+
+        "skills": priorities,
+
+    }

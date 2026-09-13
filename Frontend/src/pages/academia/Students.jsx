@@ -528,36 +528,51 @@ function Students() {
 
                   <div className="flex items-center gap-2">
 
-                    <AlertTriangle
-                      size={15}
-                      className="text-orange-400"
-                    />
+  <AlertTriangle
+    size={15}
+    className="text-orange-400"
+  />
 
-                    <span className="text-xs text-slate-500">
+  <span className="text-xs text-slate-500">
 
-                      {(student.gaps || []).length} skill gap
-                      {(student.gaps || []).length !== 1
-                        ? "s"
-                        : ""}
+    {(student.gaps || []).length} skill gap
+    {(student.gaps || []).length !== 1
+      ? "s"
+      : ""}
 
-                    </span>
-
-
-                    <span className="text-xs text-slate-300">
-                      ·
-                    </span>
+  </span>
 
 
-                    <span className="text-xs text-slate-500">
+  <span className="text-xs text-slate-300">
+    ·
+  </span>
 
-                      {student.internships || 0} internship
-                      {(student.internships || 0) !== 1
-                        ? "s"
-                        : ""}
 
-                    </span>
+  <span className="text-xs text-slate-500">
 
-                  </div>
+    {student.industry_gap_count || 0} industry gap
+    {(student.industry_gap_count || 0) !== 1
+      ? "s"
+      : ""}
+
+  </span>
+
+
+  <span className="text-xs text-slate-300">
+    ·
+  </span>
+
+
+  <span className="text-xs text-slate-500">
+
+    {student.internships || 0} internship
+    {(student.internships || 0) !== 1
+      ? "s"
+      : ""}
+
+  </span>
+
+</div>
 
 
                   <button
@@ -775,50 +790,182 @@ function Students() {
 
               {/* Gaps */}
 
+<div>
+
+  <div className="flex items-center gap-2">
+
+    <AlertTriangle
+      size={18}
+      className="text-orange-500"
+    />
+
+    <h3 className="font-semibold text-slate-900">
+      Priority Skill Gaps
+    </h3>
+
+  </div>
+
+
+  <div className="mt-4 space-y-3">
+
+    {(selectedStudent.gaps || []).length > 0 ? (
+
+      selectedStudent.gaps.map(
+        (gap) => (
+
+          <div
+            key={gap.id}
+            className="border border-slate-100 rounded-xl p-3"
+          >
+
+            <div className="flex items-center justify-between gap-3">
+
               <div>
 
-                <div className="flex items-center gap-2">
+                <p className="text-sm font-medium text-slate-800">
+                  {gap.name}
+                </p>
 
-                  <AlertTriangle
-                    size={18}
-                    className="text-orange-500"
-                  />
-
-                  <h3 className="font-semibold text-slate-900">
-                    Priority Skill Gaps
-                  </h3>
-
-                </div>
-
-
-                <div className="flex flex-wrap gap-2 mt-3">
-
-                  {(selectedStudent.gaps || []).length > 0 ? (
-
-                    selectedStudent.gaps.map(
-                      (gap) => (
-
-                        <span
-                          key={gap}
-                          className="px-3 py-2 bg-red-50 text-red-600 rounded-lg text-sm"
-                        >
-                          {gap}
-                        </span>
-
-                      )
-                    )
-
-                  ) : (
-
-                    <p className="text-sm text-green-600">
-                      No significant skill gaps.
-                    </p>
-
-                  )}
-
-                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Current score: {gap.score}%
+                </p>
 
               </div>
+
+
+              <span
+                className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                  gap.level === "Gap"
+                    ? "bg-red-50 text-red-600"
+                    : "bg-yellow-50 text-yellow-600"
+                }`}
+              >
+                {gap.level}
+              </span>
+
+            </div>
+
+
+            <div className="flex items-center justify-between mt-3">
+
+              <span className="text-xs text-slate-500">
+                Industry demand
+              </span>
+
+              <span
+                className={`text-xs font-semibold ${
+                  gap.industry_demand > 0
+                    ? "text-blue-600"
+                    : "text-slate-400"
+                }`}
+              >
+                {gap.industry_demand > 0
+                  ? `${gap.industry_demand} active opportunit${
+                      gap.industry_demand === 1
+                        ? "y"
+                        : "ies"
+                    }`
+                  : "No current demand"}
+              </span>
+
+            </div>
+
+          </div>
+
+        )
+      )
+
+    ) : (
+
+      <p className="text-sm text-green-600">
+        No significant skill gaps.
+      </p>
+
+    )}
+
+  </div>
+
+</div>
+
+{/* Industry-Relevant Gaps */}
+
+<div>
+
+  <div className="flex items-center gap-2">
+
+    <TrendingUp
+      size={18}
+      className="text-blue-600"
+    />
+
+    <h3 className="font-semibold text-slate-900">
+      Industry-Relevant Gaps
+    </h3>
+
+  </div>
+
+
+  <p className="text-xs text-slate-400 mt-1">
+    Skills this student needs that are currently requested by industry.
+  </p>
+
+
+  <div className="mt-4 space-y-3">
+
+    {(selectedStudent.industry_gaps || []).length > 0 ? (
+
+      selectedStudent.industry_gaps.map(
+        (gap) => (
+
+          <div
+            key={gap.id}
+            className="flex items-center justify-between border border-blue-100 bg-blue-50/40 rounded-xl p-3"
+          >
+
+            <div>
+
+              <p className="text-sm font-medium text-slate-800">
+                {gap.name}
+              </p>
+
+              <p className="text-xs text-slate-400 mt-1">
+                Current score {gap.score}%
+              </p>
+
+            </div>
+
+
+            <div className="text-right">
+
+              <p className="text-sm font-semibold text-blue-600">
+                {gap.industry_demand}
+              </p>
+
+              <p className="text-[11px] text-slate-400">
+                active opportunit
+                {gap.industry_demand === 1
+                  ? "y"
+                  : "ies"}
+              </p>
+
+            </div>
+
+          </div>
+
+        )
+      )
+
+    ) : (
+
+      <p className="text-sm text-slate-500">
+        No current industry-relevant skill gaps.
+      </p>
+
+    )}
+
+  </div>
+
+</div>
 
             </div>
 

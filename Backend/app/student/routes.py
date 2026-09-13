@@ -2,6 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from datetime import datetime
+from ..services.matching import calculate_opportunity_match
+from app.services.recommendations import (
+    generate_student_recommendations
+)
 
 from ..database import get_db
 from ..models import (
@@ -19,7 +23,7 @@ from ..models import (
     LearningResource,
     StudentLearning,
 )
-from ..auth.dependencies import require_role
+from ..auth.dependencies import require_role, get_current_user
 from .schemas import (
     ProjectCreate,
     CertificationCreate,
@@ -682,9 +686,7 @@ def get_opportunity(
 # GET OPPORTUNITY WITH STUDENT MATCH
 # ============================================================
 
-@router.get(
-    "/opportunities/{opportunity_id}/match"
-)
+@router.get("/opportunities/{opportunity_id}/match")
 def get_opportunity_match(
     opportunity_id: int,
     current_user: User = Depends(
@@ -692,9 +694,8 @@ def get_opportunity_match(
     ),
     db: Session = Depends(get_db),
 ):
-
     # --------------------------------------------------------
-    # Find student
+    # Get student
     # --------------------------------------------------------
 
     student = (
@@ -706,15 +707,13 @@ def get_opportunity_match(
     )
 
     if not student:
-
         raise HTTPException(
             status_code=404,
             detail="Student profile not found.",
         )
 
-
     # --------------------------------------------------------
-    # Find opportunity
+    # Get opportunity + company
     # --------------------------------------------------------
 
     opportunity_data = (
@@ -733,7 +732,6 @@ def get_opportunity_match(
     )
 
     if not opportunity_data:
-
         raise HTTPException(
             status_code=404,
             detail="Opportunity not found.",
@@ -741,98 +739,19 @@ def get_opportunity_match(
 
     opportunity, company = opportunity_data
 
-
     # --------------------------------------------------------
-    # Required skills
+    # Calculate match using central matching engine
     # --------------------------------------------------------
 
-    required_skills = (
-        db.query(Skill)
-        .join(
-            OpportunitySkill,
-            OpportunitySkill.skill_id == Skill.id,
-        )
-        .filter(
-            OpportunitySkill.opportunity_id
-            == opportunity.id
-        )
-        .all()
+    match_result = calculate_opportunity_match(
+        db=db,
+        student_id=student.id,
+        opportunity_id=opportunity.id,
     )
 
-
     # --------------------------------------------------------
-    # Student skills
+    # Return result
     # --------------------------------------------------------
-
-    student_skills = (
-        db.query(
-            Skill,
-            StudentSkill,
-        )
-        .join(
-            StudentSkill,
-            StudentSkill.skill_id == Skill.id,
-        )
-        .filter(
-            StudentSkill.student_id == student.id
-        )
-        .all()
-    )
-
-
-    student_skill_map = {
-        skill.name.lower(): student_skill.score
-        for skill, student_skill
-        in student_skills
-    }
-
-
-    # --------------------------------------------------------
-    # Calculate match
-    # --------------------------------------------------------
-
-    matched_skills = []
-    missing_skills = []
-
-    total_score = 0
-
-    for skill in required_skills:
-
-        score = student_skill_map.get(
-            skill.name.lower(),
-            0,
-        )
-
-        if score > 0:
-
-            matched_skills.append({
-                "name": skill.name,
-                "score": score,
-            })
-
-            total_score += score
-
-        else:
-
-            missing_skills.append(
-                skill.name
-            )
-
-
-    if required_skills:
-
-        match_percentage = round(
-            (
-                total_score
-                / (len(required_skills) * 100)
-            )
-            * 100
-        )
-
-    else:
-
-        match_percentage = 0
-
 
     return {
         "opportunity": {
@@ -841,11 +760,27 @@ def get_opportunity_match(
             "company": company.company_name,
         },
 
-        "match": match_percentage,
+        # Keep "match" for frontend compatibility
+        "match": match_result["match_score"],
 
-        "matched_skills": matched_skills,
+        "match_score": match_result["match_score"],
 
-        "missing_skills": missing_skills,
+        "match_level": match_result["match_level"],
+
+        "matched_skills":
+            match_result["matched_skills"],
+
+        "partial_matches":
+            match_result["partial_matches"],
+
+        "missing_skills":
+            match_result["missing_skills"],
+
+        "skill_gaps":
+            match_result["skill_gaps"],
+
+        "explanation":
+            match_result["explanation"],
     }
 
 # ============================================================
@@ -1983,3 +1918,25 @@ def update_learning_progress(
         "status": learning.status,
         "progress": learning.progress,
     }
+    
+@router.get("/recommendations")
+def get_student_recommendations(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    student = (
+        db.query(Student)
+        .filter(Student.user_id == current_user.id)
+        .first()
+    )
+
+    if not student:
+        raise HTTPException(
+            status_code=404,
+            detail="Student profile not found",
+        )
+
+    return generate_student_recommendations(
+        db=db,
+        student_id=student.id,
+    )

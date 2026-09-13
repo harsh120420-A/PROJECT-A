@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+
 import {
   BriefcaseBusiness,
   MapPin,
@@ -8,120 +9,126 @@ import {
   Pencil,
   XCircle,
   CheckCircle,
-  Users
+  Users,
 } from "lucide-react";
 
 import {
   apiGet,
-  apiPatch
+  apiPatch,
 } from "../../services/api";
 
 function MyOpportunities() {
-
   const navigate = useNavigate();
 
   const [opportunities, setOpportunities] = useState([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
 
+  // ==========================================================
+  // LOAD OPPORTUNITIES
+  // ==========================================================
 
   useEffect(() => {
+    async function loadOpportunities() {
+      try {
+        const data = await apiGet("/industry/opportunities");
 
-  async function loadOpportunities() {
-
-    try {
-
-      const data =
-        await apiGet("/industry/opportunities");
-
-      setOpportunities(data);
-
-    } catch (error) {
-
-      console.error(
-        "Failed to load opportunities:",
-        error
-      );
-
+        setOpportunities(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error(
+          "Failed to load opportunities:",
+          error
+        );
+      }
     }
 
-  }
+    loadOpportunities();
+  }, []);
 
-  loadOpportunities();
-
-}, []);
-
-
-
+  // ==========================================================
+  // TOGGLE OPPORTUNITY STATUS
+  // ==========================================================
 
   async function toggleStatus(opportunity) {
+    const newStatus =
+      opportunity.status === "Closed"
+        ? "Active"
+        : "Closed";
 
-  const newStatus =
-    opportunity.status === "Closed"
-      ? "Active"
-      : "Closed";
-
-  try {
-
-    const response =
-      await apiPatch(
+    try {
+      const response = await apiPatch(
         `/industry/opportunities/${opportunity.id}/status`,
         {
-          status: newStatus
+          status: newStatus,
         }
       );
 
-    setOpportunities((current) =>
-      current.map((item) =>
-        item.id === opportunity.id
-          ? {
-              ...item,
-              status:
-                response.opportunity.status
-            }
-          : item
-      )
-    );
+      setOpportunities((current) =>
+        current.map((item) =>
+          item.id === opportunity.id
+            ? {
+                ...item,
+                status:
+                  response.opportunity.status,
+              }
+            : item
+        )
+      );
+    } catch (error) {
+      console.error(
+        "Failed to update opportunity status:",
+        error
+      );
 
-  } catch (error) {
-
-    alert(error.message);
-
+      alert(error.message);
+    }
   }
 
-}
-
+  // ==========================================================
+  // FILTER OPPORTUNITIES
+  // ==========================================================
 
   const filteredOpportunities =
     opportunities.filter((opportunity) => {
+      const title =
+        opportunity.title || "";
+
+      const location =
+        opportunity.location || "";
+
+      const searchValue =
+        search.toLowerCase();
 
       const matchesSearch =
-        opportunity.title
+        title
           .toLowerCase()
-          .includes(search.toLowerCase()) ||
-        opportunity.location
+          .includes(searchValue) ||
+        location
           .toLowerCase()
-          .includes(search.toLowerCase());
+          .includes(searchValue);
 
       const matchesFilter =
         filter === "All" ||
         opportunity.status === filter;
 
-      return matchesSearch && matchesFilter;
-
+      return (
+        matchesSearch &&
+        matchesFilter
+      );
     });
 
+  // ==========================================================
+  // UI
+  // ==========================================================
 
   return (
-
     <div className="min-h-screen bg-slate-50">
-
-      {/* Header */}
+      {/* ======================================================
+          HEADER
+          ====================================================== */}
 
       <div className="bg-white border-b">
-
         <div className="px-8 py-6">
-
           <p className="text-sm text-blue-600 font-medium">
             INDUSTRY PORTAL
           </p>
@@ -133,22 +140,19 @@ function MyOpportunities() {
           <p className="text-slate-500 mt-2">
             Manage the opportunities posted by your organization.
           </p>
-
         </div>
-
       </div>
 
-
       <div className="p-8">
-
-        {/* Controls */}
+        {/* ====================================================
+            CONTROLS
+            ==================================================== */}
 
         <div className="bg-white border rounded-2xl p-5">
-
           <div className="flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
+            {/* Search */}
 
             <div className="relative flex-1 max-w-xl">
-
               <Search
                 size={18}
                 className="absolute left-3 top-3.5 text-slate-400"
@@ -163,47 +167,41 @@ function MyOpportunities() {
                 placeholder="Search opportunities..."
                 className="w-full border border-slate-200 rounded-lg pl-10 pr-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
               />
-
             </div>
 
+            {/* Status Filter */}
 
             <div className="flex gap-2">
-
-              {["All", "Active", "Closed"].map(
-                (option) => (
-
-                  <button
-                    key={option}
-                    onClick={() =>
-                      setFilter(option)
-                    }
-                    className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                      filter === option
-                        ? "bg-blue-600 text-white"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    }`}
-                  >
-                    {option}
-                  </button>
-
-                )
-              )}
-
+              {[
+                "All",
+                "Active",
+                "Closed",
+              ].map((option) => (
+                <button
+                  key={option}
+                  onClick={() =>
+                    setFilter(option)
+                  }
+                  className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                    filter === option
+                      ? "bg-blue-600 text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
             </div>
-
           </div>
-
         </div>
 
-
-        {/* Opportunity List */}
+        {/* ====================================================
+            OPPORTUNITY LIST
+            ==================================================== */}
 
         <div className="mt-6 space-y-5">
-
           {filteredOpportunities.length === 0 ? (
-
             <div className="bg-white border border-dashed rounded-2xl p-12 text-center">
-
               <BriefcaseBusiness
                 size={40}
                 className="mx-auto text-slate-300"
@@ -219,74 +217,80 @@ function MyOpportunities() {
 
               <button
                 onClick={() =>
-                  navigate("/industry/post-opportunity")
+                  navigate(
+                    "/industry/post-opportunity"
+                  )
                 }
                 className="mt-5 px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
               >
                 Post Opportunity
               </button>
-
             </div>
-
           ) : (
-
             filteredOpportunities.map(
               (opportunity) => (
-
                 <div
                   key={opportunity.id}
                   className="bg-white border rounded-2xl p-6"
                 >
-
-                  {/* Top */}
+                  {/* ==================================================
+                      TOP SECTION
+                      ================================================== */}
 
                   <div className="flex flex-col md:flex-row md:justify-between gap-5">
-
                     <div>
+                      {/* Title + Status */}
 
                       <div className="flex items-center gap-3">
-
                         <h2 className="text-xl font-semibold">
-                          {opportunity.title}
+                          {opportunity.title ||
+                            "Untitled Opportunity"}
                         </h2>
 
                         <span
                           className={`px-3 py-1 text-xs rounded-full ${
-                            opportunity.status === "Closed"
+                            opportunity.status ===
+                            "Closed"
                               ? "bg-slate-100 text-slate-500"
                               : "bg-green-50 text-green-600"
                           }`}
                         >
-                          {opportunity.status || "Active"}
+                          {opportunity.status ||
+                            "Active"}
                         </span>
-
                       </div>
 
+                      {/* Opportunity Metadata */}
 
                       <div className="flex flex-wrap gap-4 mt-3 text-sm text-slate-500">
-
                         <span className="flex items-center gap-1">
                           <MapPin size={15} />
-                          {opportunity.location}
+
+                          {opportunity.location ||
+                            "Not specified"}
                         </span>
 
                         <span className="flex items-center gap-1">
-                          <BriefcaseBusiness size={15} />
-                          {opportunity.mode}
+                          <BriefcaseBusiness
+                            size={15}
+                          />
+
+                          {opportunity.mode ||
+                            "Not specified"}
                         </span>
 
                         <span className="flex items-center gap-1">
                           <Clock size={15} />
-                          {opportunity.duration}
+
+                          {opportunity.duration ||
+                            "Not specified"}
                         </span>
-
                       </div>
-
                     </div>
 
+                    {/* Actions */}
 
                     <div className="flex items-center gap-2">
-
                       <button
                         onClick={() =>
                           navigate(
@@ -296,118 +300,144 @@ function MyOpportunities() {
                         className="flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium hover:bg-slate-50"
                       >
                         <Pencil size={15} />
+
                         Edit
                       </button>
 
-
                       <button
                         onClick={() =>
-  toggleStatus(opportunity)
-}
+                          toggleStatus(
+                            opportunity
+                          )
+                        }
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
-                          opportunity.status === "Closed"
+                          opportunity.status ===
+                          "Closed"
                             ? "bg-green-50 text-green-600 hover:bg-green-100"
                             : "bg-red-50 text-red-600 hover:bg-red-100"
                         }`}
                       >
-
-                        {opportunity.status === "Closed" ? (
+                        {opportunity.status ===
+                        "Closed" ? (
                           <>
-                            <CheckCircle size={15} />
+                            <CheckCircle
+                              size={15}
+                            />
+
                             Reopen
                           </>
                         ) : (
                           <>
-                            <XCircle size={15} />
+                            <XCircle
+                              size={15}
+                            />
+
                             Close
                           </>
                         )}
-
                       </button>
-
                     </div>
-
                   </div>
 
-
-                  {/* Description */}
+                  {/* ==================================================
+                      DESCRIPTION
+                      ================================================== */}
 
                   <p className="text-sm text-slate-500 mt-5 max-w-4xl">
-                    {opportunity.description}
+                    {opportunity.description ||
+                      "No description provided."}
                   </p>
 
-
-                  {/* Skills */}
+                  {/* ==================================================
+                      REQUIRED SKILLS
+                      ================================================== */}
 
                   <div className="mt-5">
-
                     <p className="text-sm font-medium">
                       Required Skills
                     </p>
 
                     <div className="flex flex-wrap gap-2 mt-3">
-
-                      {(opportunity.skills || []).map(
-                        (skill) => (
-
-                          <span
-                            key={skill}
-                            className="px-3 py-1 bg-blue-50 text-blue-700 text-xs rounded-full"
-                          >
-                            {skill}
-                          </span>
-
+                      {(
+                        Array.isArray(
+                          opportunity.skills
                         )
-                      )}
+                          ? opportunity.skills
+                          : []
+                      ).map((skill, index) => (
+                        <span
+                          key={
+                            skill?.id ??
+                            `${opportunity.id}-skill-${index}`
+                          }
+                          className="px-3 py-1 bg-blue-50 text-blue-700 text-xs rounded-full"
+                        >
+                          {skill?.name ||
+                            "Unknown Skill"}
 
+                          {skill?.requiredScore !==
+                            undefined &&
+                            ` · ${skill.requiredScore}%`}
+                        </span>
+                      ))}
                     </div>
 
+                    {(!Array.isArray(
+                      opportunity.skills
+                    ) ||
+                      opportunity.skills
+                        .length === 0) && (
+                      <p className="text-sm text-slate-400 mt-3">
+                        No required skills added.
+                      </p>
+                    )}
                   </div>
 
-
-                  {/* Bottom Stats */}
+                  {/* ==================================================
+                      BOTTOM STATS
+                      ================================================== */}
 
                   <div className="flex flex-wrap items-center gap-6 mt-6 pt-5 border-t">
+                    {/* Type */}
 
                     <div className="flex items-center gap-2 text-sm text-slate-500">
-
-                      <BriefcaseBusiness size={16} />
+                      <BriefcaseBusiness
+                        size={16}
+                      />
 
                       <span>
-                        {opportunity.type}
+                        {opportunity.type ||
+                          "Opportunity"}
                       </span>
-
                     </div>
 
+                    {/* Applications */}
 
                     <div className="flex items-center gap-2 text-sm text-slate-500">
-
                       <Users size={16} />
 
                       <span>
-                        {opportunity.applications || 0}
-                        {" "}
+                        {opportunity.applications ||
+                          0}{" "}
                         Applications
                       </span>
-
                     </div>
 
+                    {/* Candidates */}
 
                     <div className="flex items-center gap-2 text-sm text-slate-500">
-
                       <Users size={16} />
 
                       <span>
-                        {opportunity.candidates || 0}
-                        {" "}
+                        {opportunity.candidates ||
+                          0}{" "}
                         Matched Candidates
                       </span>
-
                     </div>
 
+                    {/* View Candidates */}
 
                     <div className="ml-auto">
-
                       <button
                         onClick={() =>
                           navigate(
@@ -418,24 +448,15 @@ function MyOpportunities() {
                       >
                         View Candidates
                       </button>
-
                     </div>
-
                   </div>
-
                 </div>
-
               )
             )
-
           )}
-
         </div>
-
       </div>
-
     </div>
-
   );
 }
 
