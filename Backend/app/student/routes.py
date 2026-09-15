@@ -6,6 +6,17 @@ from ..services.matching import calculate_opportunity_match
 from app.services.recommendations import (
     generate_student_recommendations
 )
+from app.services.ml_matcher import (
+    predict_opportunity_success,
+    get_ml_status,
+)
+import os
+import shutil
+import tempfile
+from app.services.resume_parser import extract_text_from_file
+from app.services.resume_skill_importer import import_resume_skills
+from fastapi import File, UploadFile, HTTPException
+from app.services.resume_fit import calculate_resume_opportunity_fit
 
 from ..database import get_db
 from ..models import (
@@ -23,6 +34,7 @@ from ..models import (
     LearningResource,
     StudentLearning,
 )
+from app.services.ml_features import build_match_features
 from ..auth.dependencies import require_role, get_current_user
 from .schemas import (
     ProjectCreate,
@@ -1940,3 +1952,183 @@ def get_student_recommendations(
         db=db,
         student_id=student.id,
     )
+    
+
+@router.get("/opportunities/{opportunity_id}/ml-features")
+def get_ml_features(
+    opportunity_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    student = (
+        db.query(Student)
+        .filter(
+            Student.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if not student:
+        raise HTTPException(
+            status_code=404,
+            detail="Student profile not found",
+        )
+
+    features = build_match_features(
+        db=db,
+        student_id=student.id,
+        opportunity_id=opportunity_id,
+    )
+
+    return {
+        "student_id": student.id,
+        "opportunity_id": opportunity_id,
+        "features": features,
+    }
+    
+    
+@router.get(
+    "/opportunities/{opportunity_id}/ml-prediction"
+)
+def get_ml_prediction(
+    opportunity_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    student = (
+        db.query(Student)
+        .filter(
+            Student.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if not student:
+        raise HTTPException(
+            status_code=404,
+            detail="Student profile not found",
+        )
+
+    return predict_opportunity_success(
+        db=db,
+        student_id=student.id,
+        opportunity_id=opportunity_id,
+    )
+
+
+@router.get("/ml-status")
+def get_student_ml_status(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return get_ml_status(db)
+
+
+@router.post("/resume/analyze")
+def analyze_resume(
+    file: UploadFile = File(...),
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Analyze a student's resume and import detected skills
+    into the student's skill profile.
+    """
+
+    allowed_extensions = {".pdf", ".docx"}
+
+    filename = file.filename or ""
+    extension = os.path.splitext(filename)[1].lower()
+
+    if extension not in allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported file type. Only PDF and DOCX files are supported.",
+        )
+
+    student = (
+        db.query(Student)
+        .filter(Student.user_id == current_user.id)
+        .first()
+    )
+
+    if not student:
+        raise HTTPException(
+            status_code=404,
+            detail="Student profile not found.",
+        )
+
+    temp_path = None
+
+    try:
+        with tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix=extension,
+        ) as temp_file:
+
+            shutil.copyfileobj(file.file, temp_file)
+            temp_path = temp_file.name
+
+        resume_text = extract_text_from_file(temp_path)
+
+        if not resume_text.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Could not extract readable text from the resume.",
+            )
+
+        result = import_resume_skills(
+            db=db,
+            student_id=student.id,
+            resume_text=resume_text,
+        )
+
+        return {
+            "message": "Resume analyzed successfully.",
+            "student_id": student.id,
+            "filename": filename,
+            "text_length": len(resume_text),
+            "skills": result,
+        }
+
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            os.remove(temp_path)
+            
+            
+@router.get("/opportunities/{opportunity_id}/resume-fit")
+def get_resume_opportunity_fit(
+    opportunity_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Calculate how well the student's current profile,
+    including resume-derived skills, fits an opportunity.
+    """
+
+    student = (
+        db.query(Student)
+        .filter(Student.user_id == current_user.id)
+        .first()
+    )
+
+    if not student:
+        raise HTTPException(
+            status_code=404,
+            detail="Student profile not found.",
+        )
+
+    result = calculate_resume_opportunity_fit(
+        db=db,
+        student_id=student.id,
+        opportunity_id=opportunity_id,
+    )
+
+    if not result:
+        raise HTTPException(
+            status_code=404,
+            detail="Opportunity not found.",
+        )
+
+    return result

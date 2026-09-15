@@ -7,7 +7,7 @@ function Landing() {
       {/* Navbar */}
       <nav className="flex items-center justify-between px-8 py-5 bg-white border-b">
         <h1 className="text-2xl font-bold text-blue-600">
-          SkillBridge
+          SARATHI : Your Career Companion
         </h1>
 
         <div className="flex gap-4">
